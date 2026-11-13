@@ -16,6 +16,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+      - run: npm install iconv-lite --no-save
       - run: node scripts/fetch-osm.js
       - name: 変更があればコミット
         run: |
