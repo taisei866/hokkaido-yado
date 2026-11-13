@@ -7,11 +7,12 @@ const PROPERTY = `properties/${process.env.GA_PROPERTY_ID}`;
 const ga = new BetaAnalyticsDataClient({ credentials: JSON.parse(process.env.GA_CREDENTIALS) });
 const DAYS = [{ startDate: 'yesterday', endDate: 'yesterday' }, { startDate: '2daysAgo', endDate: '2daysAgo' }];
 
+let lastErr = '';
 const run = async (dims, mets, opt = {}) => {
   try {
     const [r] = await ga.runReport({ property: PROPERTY, dimensions: dims.map(name => ({ name })), metrics: mets.map(name => ({ name })), ...opt });
     return r.rows || [];
-  } catch (e) { console.error(dims, e.message); return null; }
+  } catch (e) { console.error(dims, e.message); lastErr ||= e.message; return null; }
 };
 const n = v => Number(v || 0).toLocaleString('ja-JP');
 const diff = (a, b) => { const d = a - b; return d === 0 ? '±0' : (d > 0 ? `+${d}` : `${d}`); };
@@ -63,7 +64,7 @@ const CHANNELS = { 'Organic Search': '検索', Direct: '直接', 'Organic Social
   const pg = await run(['pageTitle'], ['screenPageViews'], { ...Y, orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }], limit: 5 });
   if (pg?.length) L.push('\n**よく見られたページ**\n' + pg.map((r, i) => `${i + 1}. ${r.dimensionValues[0].value.replace(/｜?なまらやど.*$/, '') || 'トップ'}（${r.metricValues[0].value}）`).join('\n'));
 
-  if (!tot) L.push('\n⚠️ GA4からデータを取得できませんでした。プロパティIDと権限をご確認ください。');
+  if (!tot) L.push('\n⚠️ GA4からデータを取得できませんでした。プロパティIDと権限をご確認ください。\n```' + lastErr.slice(0, 400) + '```');
   const content = L.join('\n').slice(0, 1990);
   console.log(content);
   const res = await fetch(process.env.DISCORD_WEBHOOK, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'なまらくん', content }) });
