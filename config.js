@@ -12,7 +12,7 @@ window.PARTNERS = [
 
 // Googleアナリティクス4の測定ID（例: 'G-XXXXXXX'）。ページ閲覧に加え、次のイベントを集計できます
 //   affiliate_click（予約ボタン：partner別）/ gacha_spin / shindan_result（type別）/ fav_add / stay_add / share_x / share_shiori
-window.GA_ID = '';
+window.GA_ID = 'G-5MH8LTWPGF';
 
 // Cloudflare Web Analytics のトークン（Cookieなしのアクセス解析。Cloudflare → Web Analytics → サイト追加で表示される token）
-window.CF_BEACON_TOKEN = '';
+window.CF_BEACON_TOKEN = 'f343a621d6b5420698089f967eef689a';
