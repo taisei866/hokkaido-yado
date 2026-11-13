@@ -1,6 +1,8 @@
 // OpenStreetMap（Overpass API）から北海道の宿泊施設を取得し data/hotels.json に保存
 // GitHub Actions から毎月実行。手元で試す: node scripts/fetch-osm.js
 const fs = require('fs');
+const iconv = require('iconv-lite'); // じゃらん検索用に宿名を Shift_JIS へ変換
+const sjis = t => [...iconv.encode(t, 'Shift_JIS')].map(b => '%' + b.toString(16).toUpperCase().padStart(2, '0')).join('');
 
 const QUERY = `[out:json][timeout:300];
 area["ISO3166-2"="JP-01"]->.hk;
@@ -49,7 +51,7 @@ const KIND = t => (t.hotel === 'ryokan' || t.guest_house === 'ryokan' || /旅館
     seen.add(id);
     const addr = t['addr:full'] || [t['addr:city'], t['addr:quarter'], t['addr:neighbourhood'], t['addr:block_number'], t['addr:housenumber']].filter(Boolean).join('');
     hotels.push({
-      id, name: t['name:ja'] || t.name, kind: KIND(t), lat: +lat.toFixed(5), lng: +lng.toFixed(5), city, region: regionOf([lat, lng]),
+      id, name: t['name:ja'] || t.name, sj: sjis(t['name:ja'] || t.name), kind: KIND(t), lat: +lat.toFixed(5), lng: +lng.toFixed(5), city, region: regionOf([lat, lng]),
       addr: addr || null, website: t.website || t['contact:website'] || null, phone: t.phone || t['contact:phone'] || null,
       onsen: t.onsen === 'yes' || /温泉/.test(`${t.name} ${t['name:ja'] || ''} ${t.description || ''}`),
     });

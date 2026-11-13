@@ -1,7 +1,14 @@
-// 宿の詳細画面に並べるリンク。{q} は「宿名 市町村」に置き換わります。
-// アフィリエイトを使う場合は、バリューコマース等で作った検索リンクに差し替え・追加してください。
-window.LINKS = [
-  { label: 'Googleで空室・料金を比較', url: 'https://www.google.com/travel/search?q={q}' },
-  // 例（バリューコマースのMyLink形式。sid・pidは自分のものに。遷移先URLは各サイトの検索URLを確認して入れる）
-  // { label: 'じゃらんで見る', url: 'https://ck.jp.ap.valuecommerce.com/servlet/referral?sid=XXXX&pid=YYYY&vc_url=' + encodeURIComponent('（じゃらんの検索URL）') },
+// ===== 予約サイト（アフィリエイト）設定 =====
+// url  : 遷移先。{q}=宿名＋市町村（UTF-8）、{sj}=宿名（じゃらん用 Shift_JIS）に置き換わります
+// wrap : アフィリエイトの包みリンク。{url} に遷移先が入ります
+//        例）バリューコマースのMyLink: 'https://ck.jp.ap.valuecommerce.com/servlet/referral?sid=●●&pid=●●&vc_url={url}'
+// pr   : 広告リンクのとき true（「PR」表示。wrap を入れると自動で true 扱い）
+// primary : 一覧のカードにも出す一番手の予約サイト
+window.PARTNERS = [
+  { id: 'jalan', name: 'じゃらん', color: '#e8590c', url: 'https://www.jalan.net/uw/uwp2011/uww2011init.do?keyword={sj}&distCd=06', wrap: '', primary: true },
+  { id: 'booking', name: 'Booking.com', color: '#003580', url: 'https://www.booking.com/searchresults.ja.html?ss={q}', wrap: '' }, // アフィリエイトIDは url の末尾に &aid=●● を追加
+  { id: 'google', name: 'Googleで料金比較', color: '#1a73e8', url: 'https://www.google.com/travel/search?q={q}', note: '複数サイトの料金を一覧' },
 ];
+
+// Googleアナリティクス4の測定ID（例: 'G-XXXXXXX'）。入れると予約ボタンのクリック数も計測されます
+window.GA_ID = '';
