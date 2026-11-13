@@ -22,8 +22,9 @@ const P = {
 };
 const I = (n, s = 22) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${P[n]}</svg>`;
 
-const KINDS = { hotel: ['ホテル', '🏨', '#1c7ed6'], ryokan: ['旅館', '🏯', '#c2255c'], guest: ['民宿・ペンション', '🏡', '#2f9e44'], hostel: ['ゲストハウス', '🛏️', '#f08c00'], motel: ['モーテル', '🚗', '#7048e8'] };
-const REGION_EMOJI = { '札幌・定山渓': '🏙️', '小樽・ニセコ・積丹': '⛷️', '千歳・苫小牧': '✈️', '登別・洞爺・室蘭': '♨️', '函館・道南': '🌉', '日高・えりも': '🐎', '旭川・層雲峡': '🍁', '富良野・美瑛': '💜', '空知・岩見沢': '🌾', '稚内・利尻礼文・留萌': '🌊', '網走・知床・紋別': '🧊', '釧路・阿寒・根室': '🦢', '帯広・十勝': '🐄' };
+const KINDS = { hotel: ['ホテル', 'building', '#1c7ed6'], ryokan: ['旅館', 'building-cottage', '#c2255c'], guest: ['民宿・ペンション', 'home', '#2f9e44'], hostel: ['ゲストハウス', 'bed', '#e8590c'], motel: ['モーテル', 'car', '#7048e8'] };
+const T = (n, c = '') => `<i class="ti ti-${n} ${c}" aria-hidden="true"></i>`;
+const REGION_ICON = { '札幌・定山渓': 'building-skyscraper', '小樽・ニセコ・積丹': 'snowflake', '千歳・苫小牧': 'plane', '登別・洞爺・室蘭': 'flame', '函館・道南': 'building-bridge', '日高・えりも': 'horse-toy', '旭川・層雲峡': 'mountain', '富良野・美瑛': 'flower', '空知・岩見沢': 'plant-2', '稚内・利尻礼文・留萌': 'sailboat', '網走・知床・紋別': 'trees', '釧路・阿寒・根室': 'feather', '帯広・十勝': 'tractor' };
 const PAGE = 40;
 
 // ===== なまらくん（マスコット） =====
@@ -65,12 +66,23 @@ window.toggleFav = (id, ev) => {
 const isPC = () => matchMedia('(min-width: 960px)').matches;
 
 // ===== 部品 =====
+// ===== 写真（Wikimedia Commons） =====
+const rphoto = r => DB?.photos?.[r];
+const credit = p => p ? `写真：<a href="${esc(p.src)}" target="_blank" rel="noopener">${esc(p.by || '不明')}</a>／${esc(p.lic || '')}（Wikimedia Commons）` : '';
+// 宿の写真 → なければ地域の写真（「地域のイメージ」と明記）→ なければ種類アイコン
+const pic = (h, cls = 'ph') => {
+  if (h.photo) return `<div class="${cls} img" style="background-image:url('${esc(h.photo.u)}')"></div>`;
+  const rp = rphoto(h.region);
+  if (rp) return `<div class="${cls} img" style="background-image:url('${esc(rp.u)}')"><span class="imgnote">地域のイメージ</span><b class="kindmark" style="--c:${KINDS[h.kind][2]}">${T(KINDS[h.kind][1])}</b></div>`;
+  return `<div class="${cls} emo" style="--c:${KINDS[h.kind][2]}">${T(KINDS[h.kind][1])}</div>`;
+};
+const rpic = (r, cls) => { const p = rphoto(r); return p ? `<span class="${cls} img" style="background-image:url('${esc(p.u)}')" title="${esc(credit(p).replace(/<[^>]+>/g, ''))}"></span>` : `<span class="${cls} emo">${T(REGION_ICON[r] || 'map-pin')}</span>`; };
 const empty = (t, p, m = 'wow') => `<div class="empty">${kun(m, 84)}<b>${t}</b><p>${p}</p></div>`;
 const heart = id => `<button class="heart ${favs().includes(id) ? 'on' : ''}" onclick="toggleFav('${id}', event)" aria-label="お気に入り">${I('heart')}</button>`;
 const kindTag = h => `<span class="tag" style="background:color-mix(in srgb,${KINDS[h.kind][2]} 14%,#fff);color:${KINDS[h.kind][2]}">${KINDS[h.kind][0]}</span>`;
-const tags = h => `${kindTag(h)}${h.onsen ? '<span class="tag m-bd">♨️ 温泉</span>' : ''}${h.website ? '<span class="tag">公式サイトあり</span>' : ''}`;
+const tags = h => `${kindTag(h)}${h.onsen ? `<span class="tag m-bd">${T('flame')}温泉</span>` : ''}${h.website ? '<span class="tag">公式サイトあり</span>' : ''}`;
 const card = h => `<div class="card" data-id="${h.id}" onclick="go('hotel/${h.id}')" onmouseenter="hl('${h.id}',1)" onmouseleave="hl('${h.id}',0)">
-  <div class="ph emo" style="--c:${KINDS[h.kind][2]}">${KINDS[h.kind][1]}</div>
+  ${pic(h)}
   <div class="cb"><b class="nm">${esc(h.name)}</b>
     <div class="meta">${I('pin', 12)} ${esc(h.city)}・${esc(h.region)}</div>
     <div class="tags">${tags(h)}</div>
@@ -89,10 +101,10 @@ if (window.GA_ID) { const s = document.createElement('script'); s.async = true; 
 
 // ===== 制覇マップ（泊まった宿） =====
 const stays = () => LS.get('stay') || [];
-window.toggleStay = id => { const s = stays(), i = s.indexOf(id); i >= 0 ? s.splice(i, 1) : s.push(id); LS.set('stay', s); toast(i >= 0 ? '「泊まった」を取り消したよ' : '🎉 なまらすごい！スタンプ押したよ'); render(); };
+window.toggleStay = id => { const s = stays(), i = s.indexOf(id); i >= 0 ? s.splice(i, 1) : s.push(id); LS.set('stay', s); toast(i >= 0 ? '「泊まった」を取り消したよ' : 'なまらすごい！スタンプ押したよ'); render(); };
 
 const crumb = (q, last) => `<nav class="crumb"><a href="#/list">北海道</a>${q.region ? ` › <a href="#/list?${qstr({ region: q.region })}">${esc(q.region)}</a>` : ''}${q.city ? ` › <a href="#/list?${qstr({ region: q.region, city: q.city })}">${esc(q.city)}</a>` : ''}${last ? ` › <span>${esc(last)}</span>` : ''}</nav>`;
-const CREDIT = () => `<footer class="credit"><div class="bye">${kun('happy', 30)}<span>したっけね〜！また来てね</span></div>宿データ：<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>（ODbL）${DB?.updated ? `｜更新 ${esc(DB.updated)}` : ''}
+const CREDIT = () => `<footer class="credit"><div class="bye">${kun('happy', 30)}<span>したっけね〜！また来てね</span></div>宿データ：<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>（ODbL）｜<a href="#/credits">写真クレジット</a>${DB?.updated ? `｜更新 ${esc(DB.updated)}` : ''}
   <p>掲載情報は地図データに基づくもので、営業状況・料金は各予約サイト・公式サイトでご確認ください。当サイトのリンクには広告（PR）が含まれる場合があります。</p>
   ${DB?.updated === 'sample' ? '<p><b>サンプルデータを表示中です（GitHub Actionsで「宿データ更新」を実行すると実データに切り替わります）</b></p>' : ''}</footer>`;
 const activeChips = q => [q.region, q.city, ...(q.kind ? q.kind.split(',').map(k => KINDS[k]?.[0]) : []), q.onsen && '温泉', q.web && '公式サイトあり', q.kw && `「${q.kw}」`].filter(Boolean);
@@ -106,8 +118,8 @@ const filterForm = (q, live) => {
     <h3>キーワード</h3><input name="kw" value="${esc(q.kw)}" placeholder="宿名・住所など" ${live ? 'onchange="doFilter(this.form)"' : ''}>
     <h3>地域</h3><select name="region" ${live ? on : 'onchange="onRegion(this)"'}><option value="">すべて（${count(q, { region: '', city: '' }).toLocaleString()}）</option>${DB.regions.map(r => `<option value="${r}" ${r === q.region ? 'selected' : ''}>${r}（${count(q, { region: r, city: '' })}）</option>`).join('')}</select>
     <h3>市町村</h3><select name="city" id="city" ${on}><option value="">すべて</option>${citiesOf(q.region).map(c => `<option ${c === q.city ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
-    <h3>宿の種類</h3><div class="checks">${Object.entries(KINDS).map(([k, [t, e]]) => `<label><input type="checkbox" name="kind" value="${k}" ${kinds.includes(k) ? 'checked' : ''} ${on}><span>${e} ${t}</span><small>${count(q, { kind: k })}</small></label>`).join('')}</div>
-    <h3>こだわり</h3><div class="checks"><label><input type="checkbox" name="onsen" value="1" ${q.onsen ? 'checked' : ''} ${on}><span>♨️ 温泉地の宿</span><small>${count(q, { onsen: '1' })}</small></label>
+    <h3>宿の種類</h3><div class="checks">${Object.entries(KINDS).map(([k, [t, e]]) => `<label><input type="checkbox" name="kind" value="${k}" ${kinds.includes(k) ? 'checked' : ''} ${on}><span>${T(e)} ${t}</span><small>${count(q, { kind: k })}</small></label>`).join('')}</div>
+    <h3>こだわり</h3><div class="checks"><label><input type="checkbox" name="onsen" value="1" ${q.onsen ? 'checked' : ''} ${on}><span>${T('flame')} 温泉地の宿</span><small>${count(q, { onsen: '1' })}</small></label>
       <label><input type="checkbox" name="web" value="1" ${q.web ? 'checked' : ''} ${on}><span>公式サイトあり</span><small>${count(q, { web: '1' })}</small></label></div>
     <input type="hidden" name="sort" value="${esc(q.sort)}">
     ${live ? `<a class="clear" href="#/list">条件をすべてクリア</a>` : `<div class="sticky-bottom"><a class="btn sub" href="#/filter">クリア</a><button class="btn">${I('search', 18)}この条件で表示</button></div>`}</form>`;
@@ -116,7 +128,7 @@ const filterForm = (q, live) => {
 // 地図：MapLibre GL ＋ OpenFreeMap（無料・キー不要のベクター地図）
 const MAP_STYLE = 'https://tiles.openfreemap.org/styles/positron';
 let MAP;
-const popHtml = h => `<div class="pop"><span class="pe" style="--c:${KINDS[h.kind][2]}">${KINDS[h.kind][1]}</span><b>${esc(h.name)}</b><small>${KINDS[h.kind][0]}・${esc(h.city)}${h.onsen ? '・♨️温泉' : ''}</small><a href="#/hotel/${h.id}">詳細を見る →</a></div>`;
+const popHtml = h => `<div class="pop"><span class="pe" style="--c:${KINDS[h.kind][2]}">${T(KINDS[h.kind][1])}</span><b>${esc(h.name)}</b><small>${KINDS[h.kind][0]}・${esc(h.city)}${h.onsen ? '・温泉' : ''}</small><a href="#/hotel/${h.id}">詳細を見る →</a></div>`;
 const mapFail = el => (el.innerHTML = '<p class="muted" style="padding:40px;text-align:center">地図を読み込めませんでした。再読み込みしてください。</p>');
 function newMap(el, opts = {}) {
   MAP?.remove?.();
@@ -155,7 +167,7 @@ function mkRegionMap(db) {
     const hs = db.hotels.filter(h => h.region === r); if (!hs.length) return;
     const lat = hs.reduce((s, h) => s + h.lat, 0) / hs.length, lng = hs.reduce((s, h) => s + h.lng, 0) / hs.length;
     const a = document.createElement('a'); a.className = 'rbub'; a.href = '#/list?' + qstr({ region: r });
-    a.innerHTML = `<span>${REGION_EMOJI[r] || '📍'}</span><b>${esc(r.split('・')[0])}</b><small>${hs.length}</small>`; a.title = r;
+    a.innerHTML = `${rpic(r, 'bimg')}<b>${esc(r.split('・')[0])}</b><small>${hs.length}</small>`; a.title = r;
     new maplibregl.Marker({ element: a }).setLngLat([lng, lat]).addTo(m);
   });
 }
@@ -168,7 +180,7 @@ window.gacha = async enc => {
   if (!list.length) return toast('対象の宿がありません');
   document.querySelector('.gacha')?.remove();
   const ov = document.createElement('div'); ov.className = 'gacha';
-  ov.innerHTML = `<div class="gbox"><div class="gkun">${kun('wow', 76)}<p class="bubble">まわすよ〜！</p></div><p class="glbl">🎲 宿ガチャ${list.length < DB.hotels.length ? `（今の条件の${list.length}軒から）` : ''}</p><div class="gname">…</div><div class="gres"></div><button class="gx" aria-label="閉じる">×</button></div>`;
+  ov.innerHTML = `<div class="gbox"><div class="gkun">${kun('wow', 76)}<p class="bubble">まわすよ〜！</p></div><p class="glbl">${T('dice-5')} 宿ガチャ${list.length < DB.hotels.length ? `（今の条件の${list.length}軒から）` : ''}</p><div class="gname">…</div><div class="gres"></div><button class="gx" aria-label="閉じる">×</button></div>`;
   document.body.append(ov);
   const close = () => ov.remove(); ov.onclick = e => { if (e.target === ov || e.target.classList.contains('gx')) close(); };
   const nm = ov.querySelector('.gname'), pick = () => list[Math.floor(Math.random() * list.length)];
@@ -178,9 +190,9 @@ window.gacha = async enc => {
     if (++i < 16) return;
     clearInterval(t); const h = pick(); nm.textContent = h.name; nm.classList.add('done');
     ov.querySelector('.gkun').innerHTML = `${kun('happy', 76)}<p class="bubble">${['ここ、なまらいいっしょ！', 'これ当たりだべさ！', 'ここで決まりっしょ！'][Math.floor(Math.random() * 3)]}</p>`;
-    ov.querySelector('.gres').innerHTML = `<div class="gmeta">${KINDS[h.kind][1]} ${KINDS[h.kind][0]}・${esc(h.city)}${h.onsen ? '・♨️温泉' : ''}</div>
+    ov.querySelector('.gres').innerHTML = `<div class="gmeta">${T(KINDS[h.kind][1])} ${KINDS[h.kind][0]}・${esc(h.city)}${h.onsen ? '・温泉' : ''}</div>
       <a class="btn" href="#/hotel/${h.id}">この宿を見てみる</a>${PRIMARY() ? outBtn(PRIMARY(), h) : ''}
-      <div class="grow"><button class="btn sub" onclick="gacha('${enc || ''}')">🎲 もう一回</button><a class="btn sub" target="_blank" rel="noopener" href="${xShare(`宿ガチャで「${h.name}」（${h.city}）が出た！次の北海道旅行はここかも🎲`, `${location.origin}${location.pathname}#/hotel/${h.id}`)}">𝕏 シェア</a></div>`;
+      <div class="grow"><button class="btn sub" onclick="gacha('${enc || ''}')">${T('refresh')} もう一回</button><a class="btn sub" target="_blank" rel="noopener" href="${xShare(`宿ガチャで「${h.name}」（${h.city}）が出た！次の北海道旅行はここかも`, `${location.origin}${location.pathname}#/hotel/${h.id}`)}">${T('brand-x')} シェア</a></div>`;
     ov.querySelector('.gres a').onclick = close;
   }, 60 + i * 4);
 };
@@ -196,8 +208,8 @@ window.importFav = ids => { const f = favs(); ids.split(',').forEach(i => !f.inc
 // 距離の目安（直線）
 const SPOTS = [['札幌駅', 43.0687, 141.3508], ['新千歳空港', 42.7752, 141.6923]];
 const km = (a, b) => { const t = Math.PI / 180, x = Math.sin((b[0] - a[0]) * t / 2) ** 2 + Math.cos(a[0] * t) * Math.cos(b[0] * t) * Math.sin((b[1] - a[1]) * t / 2) ** 2; return Math.round(12742 * Math.asin(Math.sqrt(x))); };
-const MOODS = [['♨️', '温泉でととのう', '湯けむりの宿だけ', { onsen: 1 }], ['🏯', '和の宿でのんびり', '旅館に絞って', { kind: 'ryokan' }], ['🎒', 'ひとり旅・身軽に', 'ゲストハウス・民宿', { kind: 'hostel,guest' }],
-  ['🏙️', '街を拠点に遊ぶ', '札幌のホテル', { region: '札幌・定山渓', kind: 'hotel' }], ['⛷️', '雪山へ', 'ニセコ・小樽方面', { region: '小樽・ニセコ・積丹' }], ['🦌', '道東の大自然', '釧路・阿寒・根室', { region: '釧路・阿寒・根室' }]];
+const MOODS = [['flame', '温泉でととのう', '湯けむりの宿だけ', { onsen: 1 }], ['building-cottage', '和の宿でのんびり', '旅館に絞って', { kind: 'ryokan' }], ['backpack', 'ひとり旅・身軽に', 'ゲストハウス・民宿', { kind: 'hostel,guest' }],
+  ['building-skyscraper', '街を拠点に遊ぶ', '札幌のホテル', { region: '札幌・定山渓', kind: 'hotel' }], ['snowflake', '雪山へ', 'ニセコ・小樽方面', { region: '小樽・ニセコ・積丹' }], ['trees', '道東の大自然', '釧路・阿寒・根室', { region: '釧路・阿寒・根室' }]];
 
 // ===== 操作 =====
 window.doSearch = f => { const fd = new FormData(f); go('list?' + qstr({ kw: fd.get('kw'), region: fd.get('region'), kind: fd.get('kind') })); };
@@ -217,10 +229,10 @@ const V = {
         <label>地域<select name="region"><option value="">北海道全域</option>${db.regions.map(r => `<option>${r}</option>`).join('')}</select></label>
         <label>種類<select name="kind"><option value="">すべて</option>${Object.entries(KINDS).map(([k, [t]]) => `<option value="${k}">${t}</option>`).join('')}</select></label>
         <button class="btn">${I('search', 18)}探す</button></form>
-      <div class="hbtns"><a class="gbtn" href="#/shindan">🔮 30秒 宿タイプ診断</a><button class="gbtn" onclick="gacha()">🎲 迷ったら宿ガチャ</button></div></div></div>
+      <div class="hbtns"><a class="gbtn" href="#/shindan">${T('sparkles')} 30秒 宿タイプ診断</a><button class="gbtn" onclick="gacha()">${T('dice-5')} 迷ったら宿ガチャ</button></div></div></div>
       <div class="wrap"><section><div class="sec-head"><h2>地図から選ぶ</h2><span class="muted">泡をタップするとその地域の宿へ</span></div><div id="rmap"></div></section>
-      <section><h2>気分で探す</h2><div class="moods">${MOODS.map(([e, t, s, q]) => `<a class="mood" href="#/list?${qstr(q)}"><span>${e}</span><b>${t}</b><small>${s}・${count({}, q)}軒</small></a>`).join('')}</div></section>
-      <section><h2>地域の一覧</h2><div class="rgrid">${db.regions.map(r => `<a class="rtile" href="#/list?${qstr({ region: r })}"><span>${REGION_EMOJI[r] || '📍'}</span><b>${r}</b><small>${db.hotels.filter(h => h.region === r).length}軒</small></a>`).join('')}</div></section>
+      <section><h2>気分で探す</h2><div class="moods">${MOODS.map(([e, t, s, q]) => `<a class="mood" href="#/list?${qstr(q)}"><span>${T(e)}</span><b>${t}</b><small>${s}・${count({}, q)}軒</small></a>`).join('')}</div></section>
+      <section><h2>地域の一覧</h2><div class="rgrid">${db.regions.map(r => `<a class="rtile" href="#/list?${qstr({ region: r })}">${rpic(r, 'rimg')}<b>${r}</b><small>${db.hotels.filter(h => h.region === r).length}軒</small></a>`).join('')}</div></section>
       ${CREDIT()}</div>`, a: () => mkRegionMap(db) };
   },
   async list({ q }) {
@@ -229,7 +241,7 @@ const V = {
       <div class="listwrap"><aside class="side">${filterForm(q, true)}</aside>
       <div class="results"><div class="toolbar"><span class="count"><b>${list.length.toLocaleString()}</b>軒</span>
         <select class="sort" onchange="setSort(this.value)" aria-label="並び順">${SORTS.map(([v, t]) => `<option value="${v}" ${v === (q.sort || '') ? 'selected' : ''}>${t}</option>`).join('')}</select>
-        <button class="tbtn" onclick="gacha('${encodeURIComponent(qstr(q))}')">🎲<span class="pcl"> ガチャ</span></button><a class="tbtn sp" href="#/filter?${qstr(q)}">${I('filter', 16)}絞り込み</a><a class="tbtn sp" href="#/map?${qstr({ ...q, lim: '' })}">${I('map', 16)}地図</a></div>
+        <button class="tbtn" onclick="gacha('${encodeURIComponent(qstr(q))}')">${T('dice-5')}<span class="pcl"> ガチャ</span></button><a class="tbtn sp" href="#/filter?${qstr(q)}">${I('filter', 16)}絞り込み</a><a class="tbtn sp" href="#/map?${qstr({ ...q, lim: '' })}">${I('map', 16)}地図</a></div>
       ${act.length ? `<div class="chips small">${act.map(a => `<span class="chip on">${esc(a)}</span>`).join('')}<a class="chip" href="#/list">クリア</a></div>` : ''}
       ${list.slice(0, lim).map(card).join('') || empty('条件に合う宿がありません', '条件を減らして探してみてください')}
       ${list.length > lim ? `<a class="btn sub" href="#/list?${qstr({ ...q, lim: lim + PAGE })}">もっと見る（残り${(list.length - lim).toLocaleString()}軒）</a>` : ''}${CREDIT()}</div>
@@ -246,15 +258,15 @@ const V = {
     if (!h) return { t: '宿の詳細', h: empty('宿が見つかりません', 'データ更新で掲載が終了した可能性があります') };
     const near = db.hotels.filter(x => x.id !== h.id && x.city === h.city).slice(0, 6);
     return { t: '宿の詳細', cls: 'wide', h: `${crumb(h, h.name)}<div class="dgrid"><div class="dmain">
-      <div class="dhero emo" style="--c:${KINDS[h.kind][2]}">${KINDS[h.kind][1]}</div>
+      ${pic(h, 'dhero')}<p class="pcredit">${h.photo ? credit(h.photo) : rphoto(h.region) ? `※宿の写真ではなく、${esc(h.region)}エリアのイメージ写真です。${credit(rphoto(h.region))}` : ''}</p>
       <div class="sheet"><div class="tags">${tags(h)}</div>
       <div class="drate"><h1 class="dname">${esc(h.name)}</h1>${heart(h.id)}</div>
       <ul class="info"><li><small>所在地</small>${esc(h.addr || h.city)}（${esc(h.region)}）</li>${h.phone ? `<li><small>電話</small><a href="tel:${esc(h.phone)}">${esc(h.phone)}</a></li>` : ''}<li><small>種類</small>${KINDS[h.kind][0]}</li>
         <li><small>距離の目安（直線）</small>${SPOTS.map(([n, la, ln]) => `${n}から約${km([la, ln], [h.lat, h.lng])}km`).join('・')}</li></ul>
       <div id="map" class="mini"></div></div></div>
-      <aside class="cta" id="cmp"><h2>💴 空室・料金をまとめて比較</h2><p class="muted">同じ宿でも、サイトによって料金やポイントが違うことがあります。</p>
+      <aside class="cta" id="cmp"><h2>${T('currency-yen')} 空室・料金をまとめて比較</h2><p class="muted">同じ宿でも、サイトによって料金やポイントが違うことがあります。</p>
         ${otaBox(h)}${h.website ? `<a class="btn sub" target="_blank" rel="noopener" href="${esc(h.website)}">${I('ext', 18)}公式サイトで見る</a>` : ''}
-        <div class="grow"><button class="btn sub" onclick="toggleFav('${h.id}')">${favs().includes(h.id) ? '♥ しおり済み' : '♡ しおりに入れる'}</button><button class="btn sub ${stays().includes(h.id) ? 'on' : ''}" onclick="toggleStay('${h.id}')">${stays().includes(h.id) ? '✅ 泊まった' : '🏁 泊まった！'}</button></div>
+        <div class="grow"><button class="btn sub" onclick="toggleFav('${h.id}')">${favs().includes(h.id) ? `${T('heart')} しおり済み` : `${T('heart')} しおりに入れる`}</button><button class="btn sub ${stays().includes(h.id) ? 'on' : ''}" onclick="toggleStay('${h.id}')">${stays().includes(h.id) ? `${T('circle-check')} 泊まった` : `${T('flag')} 泊まった！`}</button></div>
         <a class="btn sub" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${h.lat},${h.lng}">${I('map', 18)}Googleマップで場所を見る</a></aside></div>
       ${near.length ? `<section><h2>${esc(h.city)}のほかの宿</h2><div class="cgrid">${near.map(card).join('')}</div></section>` : ''}${CREDIT()}<div class="stickycta"><div><b>${esc(h.name)}</b><small>空室・料金を予約サイトで比較</small></div><button class="btn" onclick="document.getElementById('cmp').scrollIntoView({behavior:'smooth'})">料金を見る</button></div>`, a: () => mkMap([h, ...near], h) };
   },
@@ -262,23 +274,28 @@ const V = {
     await load();
     const a = q.a ? q.a.split(',').map(Number) : [];
     if (a.length < QS.length) {
-      const [qt, opts] = QS[a.length];
+      const [qt, opts, ics] = QS[a.length];
       return { t: '宿タイプ診断', h: `<div class="quiz">${a.length ? '' : say('ぼくが、あなたにぴったりの宿を当ててみせるよ！', 'happy')}<p class="qstep">Q${a.length + 1} / ${QS.length}</p><div class="qbar"><i style="width:${a.length / QS.length * 100}%"></i></div>
-        <h1>${qt}</h1><div class="qopts">${opts.map((o, i) => `<a class="qopt" href="#/shindan?a=${[...a, i].join(',')}">${o}</a>`).join('')}</div>
+        <h1>${qt}</h1><div class="qopts">${opts.map((o, i) => `<a class="qopt" href="#/shindan?a=${[...a, i].join(',')}">${T(ics[i])} ${o}</a>`).join('')}</div>
         ${a.length ? `<a class="muted" href="#/shindan${a.length > 1 ? '?a=' + a.slice(0, -1).join(',') : ''}">‹ ひとつ前に戻る</a>` : ''}</div>` };
     }
     const r = typeOf(a), list = filt(DB.hotels, r.q).slice(0, 4), more = qstr(r.q);
-    return { t: '診断結果', h: `<div class="quiz result">${say('診断結果が出たよ！なまら当たってるっしょ？', 'happy')}<p class="qstep">あなたの宿タイプは…</p><div class="rtype"><span>${r.e}</span><h1>${r.name}</h1><p>${r.desc}</p></div>
+    return { t: '診断結果', h: `<div class="quiz result">${say('診断結果が出たよ！なまら当たってるっしょ？', 'happy')}<p class="qstep">あなたの宿タイプは…</p><div class="rtype">${rphoto(r.q.region) ? `<div class="rphoto" style="background-image:url('${esc(rphoto(r.q.region).u)}')"></div>` : ''}<span>${T(r.e)}</span><h1>${r.name}</h1><p>${r.desc}</p></div>
       <a class="btn" href="#/list?${more}">${r.name}向けの宿を見る（${count({}, r.q)}軒）</a>
-      <div class="grow"><a class="btn sub" href="#/shindan">もう一度診断</a><a class="btn sub" target="_blank" rel="noopener" href="${xShare(`私の北海道の宿タイプは「${r.e}${r.name}」でした！`, location.origin + location.pathname + '#/shindan')}">𝕏 シェア</a></div></div>
+      <div class="grow"><a class="btn sub" href="#/shindan">もう一度診断</a><a class="btn sub" target="_blank" rel="noopener" href="${xShare(`私の北海道の宿タイプは「${r.name}」でした！`, location.origin + location.pathname + '#/shindan')}">${T('brand-x')} シェア</a></div></div>
       ${list.length ? `<section><h2>おすすめの宿</h2><div class="cgrid">${list.map(card).join('')}</div></section>` : ''}${CREDIT()}` };
+  },
+  async credits() {
+    const db = await load(), hs = db.hotels.filter(h => h.photo);
+    return { t: '写真クレジット', h: `<h1 class="pc">写真クレジット</h1><p class="muted">当サイトの写真は Wikimedia Commons で公開されている、自由に利用できるライセンスの写真です。</p>
+      <ul class="info">${db.regions.filter(rphoto).map(r => `<li><small>${esc(r)}（地域のイメージ）</small>${credit(rphoto(r))}</li>`).join('')}${hs.map(h => `<li><small>${esc(h.name)}</small>${credit(h.photo)}</li>`).join('') || (db.regions.some(rphoto) ? '' : '<li>写真はまだありません</li>')}</ul>` };
   },
   async fav({ q }) {
     const db = await load(), ids = q.ids ? q.ids.split(',') : favs(), list = ids.map(id => db.hotels.find(h => h.id === id)).filter(Boolean);
     const shared = !!q.ids;
-    return { t: '旅のしおり', cls: 'wide', h: `<div class="shead"><div><h1>📒 ${shared ? '共有された旅のしおり' : '旅のしおり'}</h1><p class="muted">${list.length}軒${shared ? '' : '・ ♡ を押した宿がここにたまります'}</p></div>
-      ${list.length ? (shared ? `<button class="btn" onclick="importFav('${esc(q.ids)}')">自分のしおりに入れる</button>` : `<button class="btn sub" onclick="shareFav()">🔗 しおりを共有する</button>`) : ''}</div>
-      ${list.length ? `<div class="cgrid">${list.map(card).join('')}</div><div id="map" class="mini"></div>` : empty('しおりはまだ空っぽ…', '気になる宿の ♡ を押すと、ぼくがここにしまっておくよ', 'sleep')}
+    return { t: '旅のしおり', cls: 'wide', h: `<div class="shead"><div><h1>${T('notebook')} ${shared ? '共有された旅のしおり' : '旅のしおり'}</h1><p class="muted">${list.length}軒${shared ? '' : '・ハートを押した宿がここにたまります'}</p></div>
+      ${list.length ? (shared ? `<button class="btn" onclick="importFav('${esc(q.ids)}')">自分のしおりに入れる</button>` : `<button class="btn sub" onclick="shareFav()">${T('share')} しおりを共有する</button>`) : ''}</div>
+      ${list.length ? `<div class="cgrid">${list.map(card).join('')}</div><div id="map" class="mini"></div>` : empty('しおりはまだ空っぽ…', '気になる宿のハートを押すと、ぼくがここにしまっておくよ', 'sleep')}
       ${shared ? '' : conquest(db)}`, a: () => list.length && mkMap(list) };
   },
 };
@@ -286,24 +303,24 @@ const V = {
 // 北海道制覇スタンプ帳
 function conquest(db) {
   const st = stays().map(id => db.hotels.find(h => h.id === id)).filter(Boolean), done = new Set(st.map(h => h.region));
-  return `<section class="conq"><div class="sec-head"><h2>🏁 北海道制覇スタンプ帳</h2><b class="rate">${done.size} / ${db.regions.length} 地域</b></div>
+  return `<section class="conq"><div class="sec-head"><h2>${T('flag')} 北海道制覇スタンプ帳</h2><b class="rate">${done.size} / ${db.regions.length} 地域</b></div>
     <div class="cbar"><i style="width:${done.size / db.regions.length * 100}%"></i></div>
-    <div class="stamps">${db.regions.map(r => `<a class="stamp ${done.has(r) ? 'on' : ''}" href="#/list?${qstr({ region: r })}"><span>${REGION_EMOJI[r] || '📍'}</span><small>${esc(r.split('・')[0])}</small></a>`).join('')}</div>
-    <p class="muted">泊まった宿の詳細ページで「🏁 泊まった！」を押すとスタンプが押されます（${st.length}軒）。${done.size ? `<a target="_blank" rel="noopener" href="${xShare(`北海道を${done.size}/${db.regions.length}地域制覇！あと${db.regions.length - done.size}地域🏁`, location.origin + location.pathname)}">𝕏 で自慢する</a>` : ''}</p></section>`;
+    <div class="stamps">${db.regions.map(r => `<a class="stamp ${done.has(r) ? 'on' : ''}" href="#/list?${qstr({ region: r })}">${rpic(r, 'simg')}<small>${esc(r.split('・')[0])}</small></a>`).join('')}</div>
+    <p class="muted">泊まった宿の詳細ページで「泊まった！」を押すとスタンプが押されます（${st.length}軒）。${done.size ? `<a target="_blank" rel="noopener" href="${xShare(`北海道を${done.size}/${db.regions.length}地域制覇！あと${db.regions.length - done.size}地域`, location.origin + location.pathname)}">${T('brand-x')} で自慢する</a>` : ''}</p></section>`;
 }
 const QS = [
-  ['だれと行く？', ['🧍 ひとりで', '👫 友達と', '💑 恋人・夫婦で', '👨‍👩‍👧 家族で']],
-  ['一番の目的は？', ['♨️ 温泉でのんびり', '🍣 街あそび・グルメ', '🏔️ 大自然・アクティビティ', '💰 とにかく安く']],
-  ['泊まるなら？', ['🏯 和の旅館', '🏨 きれいなホテル', '🏡 アットホームな民宿・ゲストハウス', '🤷 こだわらない']],
-  ['冬の北海道、どう？', ['⛄ 雪を思いきり楽しみたい', '🥶 寒いのは苦手', '🙆 どちらでも']],
+  ['だれと行く？', ['ひとりで', '友達と', '恋人・夫婦で', '家族で'], ['user', 'users', 'heart', 'users-group']],
+  ['一番の目的は？', ['温泉でのんびり', '街あそび・グルメ', '大自然・アクティビティ', 'とにかく安く'], ['flame', 'tools-kitchen-2', 'mountain', 'coin-yen']],
+  ['泊まるなら？', ['和の旅館', 'きれいなホテル', 'アットホームな民宿・ゲストハウス', 'こだわらない'], ['building-cottage', 'building', 'home', 'mood-smile']],
+  ['冬の北海道、どう？', ['雪を思いきり楽しみたい', '寒いのは苦手', 'どちらでも'], ['snowflake', 'temperature-minus', 'thumb-up']],
 ];
 const TYPES = {
-  onsen: ['♨️', '湯けむり癒やし派', '温泉街の宿で湯めぐりを楽しみ、上げ膳据え膳でゆったり過ごすのが至福のタイプ。', { region: '登別・洞爺・室蘭', onsen: '1' }],
-  city: ['🏙️', '街あそびグルメ派', '昼は街歩き、夜はグルメとはしご。駅近のホテルを拠点に動き回るタイプ。', { region: '札幌・定山渓' }],
-  night: ['🌉', '夜景ロマンス派', '港町の夜景と歴史ある街並みを、大切な人とゆっくり味わうタイプ。', { region: '函館・道南' }],
-  snow: ['⛷️', 'パウダースノー探検派', '雪山と温泉を行き来する、冬の北海道を全力で楽しむタイプ。', { region: '小樽・ニセコ・積丹' }],
-  wild: ['🦌', '大自然ワイルド派', '湿原やカルデラ湖、野生動物に会いに。景色のために遠くまで行けるタイプ。', { region: '釧路・阿寒・根室' }],
-  local: ['🎒', '身軽ローカル派', 'ゲストハウスや民宿で、地元の人や旅人との出会いを楽しむタイプ。', { kind: 'hostel,guest' }],
+  onsen: ['flame', '湯けむり癒やし派', '温泉街の宿で湯めぐりを楽しみ、上げ膳据え膳でゆったり過ごすのが至福のタイプ。', { region: '登別・洞爺・室蘭', onsen: '1' }],
+  city: ['building-skyscraper', '街あそびグルメ派', '昼は街歩き、夜はグルメとはしご。駅近のホテルを拠点に動き回るタイプ。', { region: '札幌・定山渓' }],
+  night: ['building-bridge', '夜景ロマンス派', '港町の夜景と歴史ある街並みを、大切な人とゆっくり味わうタイプ。', { region: '函館・道南' }],
+  snow: ['snowflake', 'パウダースノー探検派', '雪山と温泉を行き来する、冬の北海道を全力で楽しむタイプ。', { region: '小樽・ニセコ・積丹' }],
+  wild: ['trees', '大自然ワイルド派', '湿原やカルデラ湖、野生動物に会いに。景色のために遠くまで行けるタイプ。', { region: '釧路・阿寒・根室' }],
+  local: ['backpack', '身軽ローカル派', 'ゲストハウスや民宿で、地元の人や旅人との出会いを楽しむタイプ。', { kind: 'hostel,guest' }],
 };
 const KIND_BY = ['ryokan', 'hotel', 'guest,hostel', ''];
 function typeOf([who, aim, stay, winter]) {
@@ -318,7 +335,7 @@ const nav = cur => `<nav class="bottom">${TABS.map(([k, ic, t]) => `<a class="${
 const topbar = cur => `<div class="topbar"><a class="logo" href="#/">${kun('normal', 34)}<span>なまらやど</span></a>
   <form class="tsearch" onsubmit="doSearch(this);return false">${I('search', 16)}<input name="kw" placeholder="宿名・市町村で検索"></form>
   <div class="tlinks">${TABS.map(([k, ic, t]) => `<a class="${k === cur ? 'on' : ''}" href="#/${k}">${I(ic, 18)}${t}${k === 'fav' && favs().length ? `<b>${favs().length}</b>` : ''}</a>`).join('')}</div></div>`;
-const PARENT = { list: '', filter: '', hotel: '', shindan: '' };
+const PARENT = { list: '', filter: '', hotel: '', shindan: '', credits: '' };
 
 async function render() {
   document.querySelector('.gacha')?.remove();

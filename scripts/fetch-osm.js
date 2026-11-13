@@ -35,6 +35,56 @@ const regionOf = p => Object.entries(REGIONS).map(([k, pts]) => [k, Math.min(...
 const KIND = t => (t.hotel === 'ryokan' || t.guest_house === 'ryokan' || /旅館/.test(t.name || '')) ? 'ryokan'
   : t.tourism === 'hostel' ? 'hostel' : t.tourism === 'guest_house' ? 'guest' : t.tourism === 'motel' ? 'motel' : 'hotel';
 
+// ===== 写真（Wikimedia Commons。自由ライセンスのみ・撮影者とライセンスを記録） =====
+const UA = { 'User-Agent': 'namarayado/1.0 (https://github.com/taisei866/hokkaido-yado; GitHub Actions)' };
+const getJSON = async u => { const r = await fetch(u, { headers: UA }); if (!r.ok) throw Error(`${r.status} ${u.slice(0, 80)}`); return r.json(); };
+const chunk = (a, n) => Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, i * n + n));
+const strip = s => (s || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+const normFile = f => { f = decodeURIComponent(f).replace(/^(File|ファイル):/i, '').replace(/_/g, ' ').trim(); return f && f[0].toUpperCase() + f.slice(1); };
+function commonsFile(v) {
+  if (!v) return null;
+  const m = String(v).match(/(?:File|ファイル):([^?#|]+)/i) || String(v).match(/upload\.wikimedia\.org\/.+\/([^/?#]+\.(?:jpe?g|png|webp))/i);
+  return m ? normFile(m[1]) : null;
+}
+// 代表的な景色（日本語版Wikipediaの記事のメイン画像を使う）
+const REGION_PAGES = {
+  '札幌・定山渓': '大通公園', '小樽・ニセコ・積丹': '小樽運河', '千歳・苫小牧': '支笏湖', '登別・洞爺・室蘭': '地獄谷 (登別市)', '函館・道南': '函館山',
+  '日高・えりも': '襟裳岬', '旭川・層雲峡': '層雲峡', '富良野・美瑛': '白金青い池', '空知・岩見沢': '石狩川', '稚内・利尻礼文・留萌': '利尻山',
+  '網走・知床・紋別': '知床五湖', '釧路・阿寒・根室': '釧路湿原', '帯広・十勝': '十勝平野',
+};
+async function commonsInfo(files) {
+  const out = {};
+  for (const c of chunk([...new Set(files)], 40)) {
+    const j = await getJSON('https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=640&titles=' + encodeURIComponent(c.map(f => 'File:' + f).join('|')));
+    for (const p of Object.values(j.query?.pages || {})) {
+      const ii = p.imageinfo?.[0], m = ii?.extmetadata || {}, lic = m.LicenseShortName?.value || '';
+      if (!ii?.thumburl || !lic || /fair use|non-free/i.test(lic)) continue;
+      out[normFile(p.title)] = { u: ii.thumburl, by: strip(m.Artist?.value).slice(0, 60) || '不明', lic, src: ii.descriptionurl };
+    }
+    await sleep(300);
+  }
+  return out;
+}
+async function addPhotos(hotels) {
+  // Wikidata の画像（P18）
+  const qids = [...new Set(hotels.filter(h => h._wd && !h._file).map(h => h._wd))];
+  const p18 = {};
+  for (const c of chunk(qids, 50)) {
+    const j = await getJSON('https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=claims&ids=' + c.join('|'));
+    for (const [id, e] of Object.entries(j.entities || {})) { const v = e.claims?.P18?.[0]?.mainsnak?.datavalue?.value; if (v) p18[id] = normFile(v); }
+    await sleep(300);
+  }
+  hotels.forEach(h => { h._file = h._file || p18[h._wd] || null; });
+  // 地域の代表写真
+  const pj = await getJSON('https://ja.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages&piprop=name&redirects=1&titles=' + encodeURIComponent(Object.values(REGION_PAGES).join('|')));
+  const byTitle = {}; Object.values(pj.query?.pages || {}).forEach(p => { if (p.pageimage) byTitle[p.title] = normFile(p.pageimage); });
+  const alias = Object.fromEntries([...(pj.query?.normalized || []), ...(pj.query?.redirects || [])].map(x => [x.from, x.to]));
+  const regionFile = Object.fromEntries(Object.entries(REGION_PAGES).map(([r, t]) => [r, byTitle[alias[t] || t] || byTitle[alias[alias[t]]]]).filter(([, f]) => f));
+  const info = await commonsInfo([...hotels.map(h => h._file).filter(Boolean), ...Object.values(regionFile)]);
+  hotels.forEach(h => { if (h._file && info[h._file]) h.photo = info[h._file]; });
+  return Object.fromEntries(Object.entries(regionFile).map(([r, f]) => [r, info[f]]).filter(([, v]) => v));
+}
+
 // 混雑に備えて、複数のサーバーを順に・待ち時間を延ばしながら試す
 const ENDPOINTS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -67,13 +117,18 @@ async function fetchOverpass() {
     hotels.push({
       id, name: t['name:ja'] || t.name, sj: sjis(t['name:ja'] || t.name), kind: KIND(t), lat: +lat.toFixed(5), lng: +lng.toFixed(5), city, region: regionOf([lat, lng]),
       addr: addr || null, website: t.website || t['contact:website'] || null, phone: t.phone || t['contact:phone'] || null,
+      _wd: t.wikidata || null, _file: commonsFile(t.wikimedia_commons) || commonsFile(t.image),
       onsen: t.onsen === 'yes' || /温泉/.test(`${t.name} ${t['name:ja'] || ''} ${t.description || ''}`),
     });
   }
   if (hotels.length < 100) throw Error(`取得件数が少なすぎます（${hotels.length}件）。保存を中止しました`);
+  let photos = {};
+  try { photos = await addPhotos(hotels); console.log(`写真：宿 ${hotels.filter(h => h.photo).length}件 / 地域 ${Object.keys(photos).length}件`); }
+  catch (e) { console.log('写真の取得をスキップしました：' + e.message); }
+  hotels.forEach(h => { delete h._wd; delete h._file; });
   hotels.sort((a, b) => a.region.localeCompare(b.region, 'ja') || a.name.localeCompare(b.name, 'ja'));
   fs.mkdirSync('data', { recursive: true });
-  fs.writeFileSync('data/hotels.json', JSON.stringify({ updated: new Date().toISOString().slice(0, 10), regions: Object.keys(REGIONS), hotels }));
+  fs.writeFileSync('data/hotels.json', JSON.stringify({ updated: new Date().toISOString().slice(0, 10), regions: Object.keys(REGIONS), photos, hotels }));
   console.log(`保存しました: ${hotels.length}件`);
   Object.keys(REGIONS).forEach(k => console.log(`  ${k}: ${hotels.filter(h => h.region === k).length}件`));
 })().catch(e => { console.error(e); process.exit(1); });

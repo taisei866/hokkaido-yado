@@ -301,3 +301,28 @@ nav.bottom a.on,.tlinks a.on{color:var(--acc)}.tlinks a.on{background:#FFE8CC}
 .stamp.on{border-color:var(--acc);color:var(--acc);background:#FFF1E0}
 @media (min-width:960px){.hero-kun .kun{width:130px;height:130px}.bubble{font-size:14px}}
 @media (prefers-reduced-motion:reduce){.hero-kun .kun,.gkun .kun.wow{animation:none}}
+
+/* ===== 写真・アイコン ===== */
+.ti{font-size:1.1em;vertical-align:-.12em}
+.img{background-size:cover;background-position:center;position:relative}
+.ph.img,.dhero.img{background-color:#eadfce}
+.emo .ti{font-size:38px;color:var(--c,#7A6A5C)}
+.dhero.emo .ti{font-size:88px}
+.imgnote{position:absolute;left:6px;bottom:6px;font-size:9px;font-weight:700;color:#fff;background:rgba(43,43,43,.6);padding:1px 6px;border-radius:4px}
+.dhero .imgnote{font-size:11px;left:12px;bottom:12px}
+.kindmark{position:absolute;right:6px;top:6px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:#fff;color:var(--c)}
+.kindmark .ti{font-size:14px;vertical-align:0}
+.dhero .kindmark{width:40px;height:40px;right:12px;top:12px}.dhero .kindmark .ti{font-size:22px}
+.pcredit{font-size:10px;color:var(--sub);margin:6px 0 0;line-height:1.5}.pcredit a{color:var(--sub)}
+.rtile{padding:0;overflow:hidden}.rtile b,.rtile small{padding:0 14px}.rtile small{padding-bottom:12px}
+.rimg{display:grid;place-items:center;height:96px;margin-bottom:8px;background-color:#FFE8CC;font-size:32px;color:var(--acc)}
+.bimg{width:30px;height:30px;border-radius:50%;display:inline-grid;place-items:center;background-color:#FFE8CC;color:var(--acc);font-size:16px;flex:none}
+.simg{width:56%;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;font-size:20px}
+.stamp:not(.on) .simg.img{filter:grayscale(1)}
+.mood span .ti{font-size:30px;color:var(--acc)}
+.qopt .ti{color:var(--acc);margin-right:4px}
+.rtype{overflow:hidden;position:relative}.rtype .rphoto{height:140px;margin:-28px -18px 14px;background-size:cover;background-position:center}
+.rtype>span .ti{font-size:48px;color:var(--acc)}
+.pe{float:left}.pe .ti{font-size:20px;color:var(--c)}
+.tag .ti{margin-right:2px}
+.gbtn .ti,.btn .ti{margin-right:2px}
