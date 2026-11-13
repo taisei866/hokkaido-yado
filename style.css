@@ -253,3 +253,51 @@ main:has(.stickycta){padding-bottom:84px}
 .stamp span{font-size:24px}.stamp small{font-size:10px}
 .stamp.on{border:3px solid #e03131;color:#c92a2a;filter:none;opacity:1;transform:rotate(-8deg);background:#fff5f5}
 @media (min-width:960px){.stickycta{display:none}main:has(.stickycta){padding-bottom:24px}.quiz h1{font-size:28px}.qopts{grid-template-columns:1fr 1fr}}
+
+/* ===== なまらやど ブランド（B案） ===== */
+:root{--p:#6A58A8;--acc:#CC6420;--ink:#2B2B2B;--sub:#7A6A5C;--line:#F0E2CF;--bg:#FFF7EC}
+body{background:#F6EBDD}
+h1,h2,.brand,.logo span,.rtype h1,.nm{font-family:"M PLUS Rounded 1c","Noto Sans JP",sans-serif}
+.btn{box-shadow:none;border-radius:14px}
+.btn:hover{filter:brightness(1.05)}
+.btn.sub{background:#fff;border:1.5px solid var(--line)}
+.chip:has(input:checked),.chip.on{background:#F1EDFB;border-color:#8E7CC3;color:#5B4A99}
+.tag.m-none{background:#F1EDFB;color:#5B4A99}
+nav.bottom a.on,.tlinks a.on{color:var(--acc)}.tlinks a.on{background:#FFE8CC}
+.card,.rtile,.mood,.cta,.conq,.info,.memo,.sum,.side,.plan{border-color:var(--line)}
+.card:hover,.rtile:hover{border-color:#F2B27A}
+/* トップ：フラットなクリーム地＋なまらくん */
+.hero,.home .hero{background:#FFE8CC;color:var(--ink)}
+.hero .brand{color:var(--acc);font-size:16px;opacity:1}
+.hero h1{color:var(--ink)}
+.lead{color:#6B5848;opacity:1}
+.hero-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.hero-kun{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none}
+.hero-kun .kun{animation:bob 3s ease-in-out infinite;width:84px;height:84px}
+@keyframes bob{50%{transform:translateY(-6px) rotate(-3deg)}}
+.hero.snow::before,.hero.snow::after{background-image:radial-gradient(#fff 1.8px,transparent 2.4px),radial-gradient(#fff 1.2px,transparent 1.8px);opacity:.9}
+.sform{border:1.5px solid #F5C99E;box-shadow:none}
+.gbtn{color:var(--ink);border:1.5px solid var(--ink);background:#fff;backdrop-filter:none}
+.gbtn:hover{background:#FFF1E0}
+.bubble{position:relative;margin:0;padding:8px 12px;background:#fff;border:1.5px solid var(--ink);border-radius:14px;font-size:12px;font-weight:700;line-height:1.5;color:var(--ink)}
+.hero-kun .bubble::after{content:"";position:absolute;right:30px;bottom:-7px;width:10px;height:10px;background:#fff;border-right:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink);transform:rotate(45deg)}
+.say{display:flex;align-items:center;gap:10px;margin:0 0 16px;text-align:left}
+.say .bubble{flex:1}
+.empty .kun{display:block;margin:0 auto 6px}
+.bye{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:8px;font-size:12px;font-weight:700;color:var(--acc)}
+.logo{display:flex;align-items:center;gap:8px;color:var(--acc)}
+.logo span{font-size:20px;color:var(--acc)}
+.gkun{display:flex;align-items:center;justify-content:center;gap:8px;margin:-8px 0 10px}
+.gkun .kun.wow{animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.gname.done{background:#FFE8CC}
+.mood{background:#fff}
+.mood:hover{box-shadow:none;border-color:#F2B27A}
+.rtype{background:#FFE8CC}
+.qopt:hover{border-color:var(--acc);background:#FFF1E0}
+.qbar i,.cbar i{background:var(--acc)}
+#rmap{box-shadow:none;border:1.5px solid var(--line)}
+.rbub small{background:var(--acc)}
+.stamp.on{border-color:var(--acc);color:var(--acc);background:#FFF1E0}
+@media (min-width:960px){.hero-kun .kun{width:130px;height:130px}.bubble{font-size:14px}}
+@media (prefers-reduced-motion:reduce){.hero-kun .kun,.gkun .kun.wow{animation:none}}
