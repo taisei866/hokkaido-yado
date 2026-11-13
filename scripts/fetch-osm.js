@@ -35,13 +35,27 @@ const regionOf = p => Object.entries(REGIONS).map(([k, pts]) => [k, Math.min(...
 const KIND = t => (t.hotel === 'ryokan' || t.guest_house === 'ryokan' || /旅館/.test(t.name || '')) ? 'ryokan'
   : t.tourism === 'hostel' ? 'hostel' : t.tourism === 'guest_house' ? 'guest' : t.tourism === 'motel' ? 'motel' : 'hotel';
 
+// 混雑に備えて、複数のサーバーを順に・待ち時間を延ばしながら試す
+const ENDPOINTS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function fetchOverpass() {
+  let last;
+  for (let round = 0; round < 3; round++) {
+    for (const url of ENDPOINTS) {
+      try {
+        const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'hokkaido-yado (GitHub Actions)' }, body: 'data=' + encodeURIComponent(QUERY), signal: AbortSignal.timeout(330000) });
+        if (r.ok) { console.log(`取得成功: ${url}`); return await r.json(); }
+        last = `${url} → ${r.status}`;
+      } catch (e) { last = `${url} → ${e.message}`; }
+      console.log(`失敗: ${last}`);
+    }
+    const wait = 30000 * 2 ** round; console.log(`${wait / 1000}秒待って再試行します`); await sleep(wait);
+  }
+  throw Error(`すべてのサーバーで取得に失敗しました（最後: ${last}）`);
+}
+
 (async () => {
-  const r = await fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'hokkaido-yado (GitHub Actions)' },
-    body: 'data=' + encodeURIComponent(QUERY),
-  });
-  if (!r.ok) throw Error(`Overpass API エラー ${r.status}: ${(await r.text()).slice(0, 300)}`);
-  const { elements } = await r.json();
+  const { elements } = await fetchOverpass();
   let city = '';
   const seen = new Set(), hotels = [];
   for (const e of elements) {
