@@ -326,3 +326,4 @@ nav.bottom a.on,.tlinks a.on{color:var(--acc)}.tlinks a.on{background:#FFE8CC}
 .pe{float:left}.pe .ti{font-size:20px;color:var(--c)}
 .tag .ti{margin-right:2px}
 .gbtn .ti,.btn .ti{margin-right:2px}
+.doc{line-height:1.8;font-size:14px;max-width:760px}.doc h2{font-size:16px;margin:22px 0 4px}

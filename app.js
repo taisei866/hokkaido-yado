@@ -61,6 +61,7 @@ window.toggleFav = (id, ev) => {
   ev?.stopPropagation();
   const f = favs(), i = f.indexOf(id);
   i >= 0 ? f.splice(i, 1) : f.unshift(id);
+  if (i < 0) ev('fav_add', { hotel_id: id });
   LS.set('fav', f); toast(i >= 0 ? 'しおりから外したよ' : 'しおりに入れたよ！なまらいいね'); render();
 };
 const isPC = () => matchMedia('(min-width: 960px)').matches;
@@ -97,14 +98,17 @@ const outBtn = (l, h) => `<a class="ota" style="--b:${l.color || '#495057'}" tar
 const otaBox = h => `<div class="otas">${PARTNERS.map(l => outBtn(l, h)).join('')}</div>${PARTNERS.some(isPR) ? '<p class="prnote">※「PR」表示のリンクは広告（アフィリエイト）です。予約・料金は各サイトでご確認ください。</p>' : ''}`;
 const PRIMARY = () => PARTNERS.find(p => p.primary) || PARTNERS[0];
 const miniOut = h => { const l = PRIMARY(); return l ? `<a class="miniota" target="_blank" rel="noopener sponsored nofollow" href="${esc(outUrl(l, h))}" onclick="event.stopPropagation();trackOut('${l.id}','${h.id}')">${esc(l.name)}で空室を見る ›${isPR(l) ? '<i>PR</i>' : ''}</a>` : ''; };
-if (window.GA_ID) { const s = document.createElement('script'); s.async = true; s.src = `https://www.googletagmanager.com/gtag/js?id=${window.GA_ID}`; document.head.append(s); window.dataLayer = window.dataLayer || []; window.gtag = function () { dataLayer.push(arguments); }; gtag('js', new Date()); gtag('config', window.GA_ID); }
+if (window.GA_ID) { const s = document.createElement('script'); s.async = true; s.src = `https://www.googletagmanager.com/gtag/js?id=${window.GA_ID}`; document.head.append(s); window.dataLayer = window.dataLayer || []; window.gtag = function () { dataLayer.push(arguments); }; gtag('js', new Date()); gtag('config', window.GA_ID, { send_page_view: false }); }
+if (window.CF_BEACON_TOKEN) { const s = document.createElement('script'); s.defer = true; s.src = 'https://static.cloudflareinsights.com/beacon.min.js'; s.dataset.cfBeacon = JSON.stringify({ token: window.CF_BEACON_TOKEN, spa: true }); document.head.append(s); }
+const ev = (name, p = {}) => window.gtag?.('event', name, p);
+const trackPage = () => window.gtag?.('event', 'page_view', { page_location: location.href, page_path: '/' + (location.hash.slice(2).split('?')[0] || ''), page_title: document.title });
 
 // ===== 制覇マップ（泊まった宿） =====
 const stays = () => LS.get('stay') || [];
-window.toggleStay = id => { const s = stays(), i = s.indexOf(id); i >= 0 ? s.splice(i, 1) : s.push(id); LS.set('stay', s); toast(i >= 0 ? '「泊まった」を取り消したよ' : 'なまらすごい！スタンプ押したよ'); render(); };
+window.toggleStay = id => { const s = stays(), i = s.indexOf(id); i >= 0 ? s.splice(i, 1) : (s.push(id), ev('stay_add', { hotel_id: id })); LS.set('stay', s); toast(i >= 0 ? '「泊まった」を取り消したよ' : 'なまらすごい！スタンプ押したよ'); render(); };
 
 const crumb = (q, last) => `<nav class="crumb"><a href="#/list">北海道</a>${q.region ? ` › <a href="#/list?${qstr({ region: q.region })}">${esc(q.region)}</a>` : ''}${q.city ? ` › <a href="#/list?${qstr({ region: q.region, city: q.city })}">${esc(q.city)}</a>` : ''}${last ? ` › <span>${esc(last)}</span>` : ''}</nav>`;
-const CREDIT = () => `<footer class="credit"><div class="bye">${kun('happy', 30)}<span>したっけね〜！また来てね</span></div>宿データ：<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>（ODbL）｜<a href="#/credits">写真クレジット</a>${DB?.updated ? `｜更新 ${esc(DB.updated)}` : ''}
+const CREDIT = () => `<footer class="credit"><div class="bye">${kun('happy', 30)}<span>したっけね〜！また来てね</span></div>宿データ：<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>（ODbL）｜<a href="#/credits">写真クレジット</a>｜<a href="#/privacy">プライバシーポリシー</a>${DB?.updated ? `｜更新 ${esc(DB.updated)}` : ''}
   <p>掲載情報は地図データに基づくもので、営業状況・料金は各予約サイト・公式サイトでご確認ください。当サイトのリンクには広告（PR）が含まれる場合があります。</p>
   ${DB?.updated === 'sample' ? '<p><b>サンプルデータを表示中です（GitHub Actionsで「宿データ更新」を実行すると実データに切り替わります）</b></p>' : ''}</footer>`;
 const activeChips = q => [q.region, q.city, ...(q.kind ? q.kind.split(',').map(k => KINDS[k]?.[0]) : []), q.onsen && '温泉', q.web && '公式サイトあり', q.kw && `「${q.kw}」`].filter(Boolean);
@@ -183,6 +187,7 @@ window.gacha = async enc => {
   ov.innerHTML = `<div class="gbox"><div class="gkun">${kun('wow', 76)}<p class="bubble">まわすよ〜！</p></div><p class="glbl">${T('dice-5')} 宿ガチャ${list.length < DB.hotels.length ? `（今の条件の${list.length}軒から）` : ''}</p><div class="gname">…</div><div class="gres"></div><button class="gx" aria-label="閉じる">×</button></div>`;
   document.body.append(ov);
   const close = () => ov.remove(); ov.onclick = e => { if (e.target === ov || e.target.classList.contains('gx')) close(); };
+  ev('gacha_spin', { filtered: list.length < DB.hotels.length });
   const nm = ov.querySelector('.gname'), pick = () => list[Math.floor(Math.random() * list.length)];
   let i = 0;
   const t = setInterval(() => {
@@ -197,9 +202,11 @@ window.gacha = async enc => {
   }, 60 + i * 4);
 };
 
+document.addEventListener('click', e => { const a = e.target.closest('a[href*="x.com/intent"]'); if (a) ev('share_x', { page: location.hash.split('?')[0] || '#/' }); });
 const xShare = (text, url) => `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}&hashtags=${encodeURIComponent('なまらやど')}`;
 // 旅のしおり：URLで共有
 window.shareFav = async () => {
+  ev('share_shiori');
   const url = `${location.origin}${location.pathname}#/fav?ids=${favs().join(',')}`;
   try { if (navigator.share) await navigator.share({ title: 'なまらやど 旅のしおり', url }); else { await navigator.clipboard.writeText(url); toast('共有リンクをコピーしました'); } } catch {}
 };
@@ -280,11 +287,19 @@ const V = {
         ${a.length ? `<a class="muted" href="#/shindan${a.length > 1 ? '?a=' + a.slice(0, -1).join(',') : ''}">‹ ひとつ前に戻る</a>` : ''}</div>` };
     }
     const r = typeOf(a), list = filt(DB.hotels, r.q).slice(0, 4), more = qstr(r.q);
+    ev('shindan_result', { type: r.name });
     return { t: '診断結果', h: `<div class="quiz result">${say('診断結果が出たよ！なまら当たってるっしょ？', 'happy')}<p class="qstep">あなたの宿タイプは…</p><div class="rtype">${rphoto(r.q.region) ? `<div class="rphoto" style="background-image:url('${esc(rphoto(r.q.region).u)}')"></div>` : ''}<span>${T(r.e)}</span><h1>${r.name}</h1><p>${r.desc}</p></div>
       <a class="btn" href="#/list?${more}">${r.name}向けの宿を見る（${count({}, r.q)}軒）</a>
       <div class="grow"><a class="btn sub" href="#/shindan">もう一度診断</a><a class="btn sub" target="_blank" rel="noopener" href="${xShare(`私の北海道の宿タイプは「${r.name}」でした！`, location.origin + location.pathname + '#/shindan')}">${T('brand-x')} シェア</a></div></div>
       ${list.length ? `<section><h2>おすすめの宿</h2><div class="cgrid">${list.map(card).join('')}</div></section>` : ''}${CREDIT()}` };
   },
+  privacy: () => ({ t: 'プライバシーポリシー', h: `<div class="doc"><h1>プライバシーポリシー</h1>
+    <p>なまらやど（以下「当サイト」）は、会員登録やログインのないサイトで、氏名・メールアドレスなどの個人情報はお預かりしていません。</p>
+    <h2>端末への保存</h2><p>「旅のしおり」「泊まった」の記録と、予約サイトへのリンクを押した回数は、お使いの端末のブラウザ内（ローカルストレージ）にだけ保存され、当サイトには送られません。ブラウザの設定で削除できます。</p>
+    <h2>アクセス解析</h2><p>サイト改善のため、${window.CF_BEACON_TOKEN ? 'Cloudflare Web Analytics（Cookieを使用しない解析）' : ''}${window.CF_BEACON_TOKEN && window.GA_ID ? '、' : ''}${window.GA_ID ? 'Googleアナリティクス（Cookieを使用）' : ''}${window.CF_BEACON_TOKEN || window.GA_ID ? 'を利用し、閲覧ページ・端末の種類・おおよその地域などの統計情報を取得することがあります。' : 'アクセス解析ツールを導入した場合は、ここに記載します。'}</p>
+    <h2>外部サービス</h2><p>地図の表示にOpenFreeMap・OpenStreetMap、文字や部品の表示にGoogle Fonts・jsDelivr・unpkg、写真の表示にWikimedia Commonsを利用しており、表示のためにIPアドレスなどがこれらのサービスに送信されます。</p>
+    <h2>広告（アフィリエイト）</h2><p>当サイトには予約サイトへの広告リンク（「PR」表示）が含まれます。リンク先での予約により、当サイトが紹介料を受け取ることがあります。リンク先では各サイトのプライバシーポリシーが適用されます。</p>
+    <h2>掲載情報について</h2><p>宿の情報はOpenStreetMapの地図データに基づくもので、営業状況や料金は各予約サイト・公式サイトでご確認ください。掲載内容の修正・削除のご依頼は、サイト管理者までお知らせください。</p></div>` }),
   async credits() {
     const db = await load(), hs = db.hotels.filter(h => h.photo);
     return { t: '写真クレジット', h: `<h1 class="pc">写真クレジット</h1><p class="muted">当サイトの写真は Wikimedia Commons で公開されている、自由に利用できるライセンスの写真です。</p>
@@ -335,7 +350,7 @@ const nav = cur => `<nav class="bottom">${TABS.map(([k, ic, t]) => `<a class="${
 const topbar = cur => `<div class="topbar"><a class="logo" href="#/">${kun('normal', 34)}<span>なまらやど</span></a>
   <form class="tsearch" onsubmit="doSearch(this);return false">${I('search', 16)}<input name="kw" placeholder="宿名・市町村で検索"></form>
   <div class="tlinks">${TABS.map(([k, ic, t]) => `<a class="${k === cur ? 'on' : ''}" href="#/${k}">${I(ic, 18)}${t}${k === 'fav' && favs().length ? `<b>${favs().length}</b>` : ''}</a>`).join('')}</div></div>`;
-const PARENT = { list: '', filter: '', hotel: '', shindan: '', credits: '' };
+const PARENT = { list: '', filter: '', hotel: '', shindan: '', credits: '', privacy: '' };
 
 async function render() {
   document.querySelector('.gacha')?.remove();
@@ -347,7 +362,7 @@ async function render() {
     const root = TABS.some(([k]) => k === name), y = scrollY, cur = PARENT[name] ?? name;
     $('#app').innerHTML = topbar(cur) + (v.t ? `<header>${root ? '<span class="hsp"></span>' : `<button class="back" onclick="history.length>1?history.back():go('')" aria-label="戻る">${I('back')}</button>`}<h2>${esc(v.t)}</h2><span class="hsp"></span></header>` : '')
       + `<main class="${v.cls || ''}">${v.h}</main>${nav(cur)}`;
-    v.a?.(); scrollTo(0, v.keepScroll ? y : 0);
+    v.a?.(); scrollTo(0, v.keepScroll ? y : 0); trackPage();
   } catch (e) { $('#app').innerHTML = `${topbar('')}<main>${empty('読み込みに失敗しました', esc(e.message))}<a class="btn" href="#/">トップへ</a></main>${nav('')}`; }
 }
 addEventListener('hashchange', render);

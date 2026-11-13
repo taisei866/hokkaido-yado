@@ -10,5 +10,9 @@ window.PARTNERS = [
   { id: 'google', name: 'Googleで料金比較', color: '#1a73e8', url: 'https://www.google.com/travel/search?q={q}', note: '複数サイトの料金を一覧' },
 ];
 
-// Googleアナリティクス4の測定ID（例: 'G-XXXXXXX'）。入れると予約ボタンのクリック数も計測されます
+// Googleアナリティクス4の測定ID（例: 'G-XXXXXXX'）。ページ閲覧に加え、次のイベントを集計できます
+//   affiliate_click（予約ボタン：partner別）/ gacha_spin / shindan_result（type別）/ fav_add / stay_add / share_x / share_shiori
 window.GA_ID = '';
+
+// Cloudflare Web Analytics のトークン（Cookieなしのアクセス解析。Cloudflare → Web Analytics → サイト追加で表示される token）
+window.CF_BEACON_TOKEN = '';
