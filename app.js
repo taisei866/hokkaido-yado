@@ -29,11 +29,20 @@ const PAGE = 40;
 // ===== データ =====
 let DB;
 const load = async () => DB ??= await (await fetch('data/hotels.json', { cache: 'no-cache' })).json();
+const SORTS = [['', 'おすすめ順'], ['onsen', '温泉の宿を先に'], ['web', '公式サイトありを先に'], ['name', '名前順']];
 const filt = (list, q) => {
   const kw = (q.kw || '').trim().toLowerCase();
-  return list.filter(h => (!q.region || h.region === q.region) && (!q.city || h.city === q.city) && (!q.kind || q.kind.split(',').includes(h.kind))
+  const r = list.filter(h => (!q.region || h.region === q.region) && (!q.city || h.city === q.city) && (!q.kind || q.kind.split(',').includes(h.kind))
     && (!q.onsen || h.onsen) && (!q.web || h.website) && (!kw || `${h.name} ${h.city} ${h.addr || ''}`.toLowerCase().includes(kw)));
+  // おすすめ順：情報が多い宿（公式サイト・電話・住所あり）を上に
+  const score = h => (h.website ? 2 : 0) + (h.phone ? 1 : 0) + (h.addr ? 1 : 0) + (h.onsen ? 1 : 0);
+  if (q.sort === 'onsen') r.sort((a, b) => b.onsen - a.onsen);
+  else if (q.sort === 'web') r.sort((a, b) => !!b.website - !!a.website);
+  else if (q.sort === 'name') r.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+  else r.sort((a, b) => score(b) - score(a));
+  return r;
 };
+const count = (q, patch) => filt(DB.hotels, { ...q, ...patch }).length;
 const favs = () => LS.get('fav') || [];
 window.toggleFav = (id, ev) => {
   ev?.stopPropagation();
@@ -41,99 +50,124 @@ window.toggleFav = (id, ev) => {
   i >= 0 ? f.splice(i, 1) : f.unshift(id);
   LS.set('fav', f); toast(i >= 0 ? 'お気に入りから外しました' : 'お気に入りに追加しました'); render();
 };
+const isPC = () => matchMedia('(min-width: 960px)').matches;
 
 // ===== 部品 =====
 const empty = (t, p) => `<div class="empty"><div>🏨</div><b>${t}</b><p>${p}</p></div>`;
 const heart = id => `<button class="heart ${favs().includes(id) ? 'on' : ''}" onclick="toggleFav('${id}', event)" aria-label="お気に入り">${I('heart')}</button>`;
 const kindTag = h => `<span class="tag" style="background:color-mix(in srgb,${KINDS[h.kind][2]} 14%,#fff);color:${KINDS[h.kind][2]}">${KINDS[h.kind][0]}</span>`;
-const card = h => `<div class="card" onclick="go('hotel/${h.id}')">
+const tags = h => `${kindTag(h)}${h.onsen ? '<span class="tag m-bd">♨️ 温泉</span>' : ''}${h.website ? '<span class="tag">公式サイトあり</span>' : ''}`;
+const card = h => `<div class="card" data-id="${h.id}" onclick="go('hotel/${h.id}')" onmouseenter="hl('${h.id}',1)" onmouseleave="hl('${h.id}',0)">
   <div class="ph emo" style="--c:${KINDS[h.kind][2]}">${KINDS[h.kind][1]}</div>
   <div class="cb"><b class="nm">${esc(h.name)}</b>
     <div class="meta">${I('pin', 12)} ${esc(h.city)}・${esc(h.region)}</div>
-    <div class="tags">${kindTag(h)}${h.onsen ? '<span class="tag m-bd">♨️ 温泉</span>' : ''}${h.website ? '<span class="tag">公式サイトあり</span>' : ''}</div></div>
+    <div class="tags">${tags(h)}</div>
+    ${h.addr ? `<div class="addr">${esc(h.addr)}</div>` : ''}</div>
   ${heart(h.id)}</div>`;
 const linksFor = h => (window.LINKS || []).map(l => `<a class="btn" target="_blank" rel="noopener sponsored" href="${esc(l.url.replace('{q}', encodeURIComponent(`${h.name} ${h.city}`)))}">${I('ext', 18)}${esc(l.label)}</a>`).join('');
+const crumb = (q, last) => `<nav class="crumb"><a href="#/list">北海道</a>${q.region ? ` › <a href="#/list?${qstr({ region: q.region })}">${esc(q.region)}</a>` : ''}${q.city ? ` › <a href="#/list?${qstr({ region: q.region, city: q.city })}">${esc(q.city)}</a>` : ''}${last ? ` › <span>${esc(last)}</span>` : ''}</nav>`;
 const CREDIT = () => `<footer class="credit">宿データ：<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>（ODbL）${DB?.updated ? `｜更新 ${esc(DB.updated)}` : ''}
   <p>掲載情報は地図データに基づくもので、営業状況・料金は各予約サイト・公式サイトでご確認ください。当サイトのリンクには広告（PR）が含まれる場合があります。</p>
   ${DB?.updated === 'sample' ? '<p><b>サンプルデータを表示中です（GitHub Actionsで「宿データ更新」を実行すると実データに切り替わります）</b></p>' : ''}</footer>`;
 const activeChips = q => [q.region, q.city, ...(q.kind ? q.kind.split(',').map(k => KINDS[k]?.[0]) : []), q.onsen && '温泉', q.web && '公式サイトあり', q.kw && `「${q.kw}」`].filter(Boolean);
+const citiesOf = region => [...new Set(DB.hotels.filter(h => !region || h.region === region).map(h => h.city))].sort((a, b) => a.localeCompare(b, 'ja'));
 
-function mkMap(list) {
+// 絞り込みフォーム（PCは左サイドで即時反映、スマホは専用画面）
+const filterForm = (q, live) => {
+  const kinds = (q.kind || '').split(',');
+  const on = live ? 'onchange="doFilter(this.form)"' : '';
+  return `<form class="fform" onsubmit="doFilter(this);return false">
+    <h3>キーワード</h3><input name="kw" value="${esc(q.kw)}" placeholder="宿名・住所など" ${live ? 'onchange="doFilter(this.form)"' : ''}>
+    <h3>地域</h3><select name="region" ${live ? on : 'onchange="onRegion(this)"'}><option value="">すべて（${count(q, { region: '', city: '' }).toLocaleString()}）</option>${DB.regions.map(r => `<option value="${r}" ${r === q.region ? 'selected' : ''}>${r}（${count(q, { region: r, city: '' })}）</option>`).join('')}</select>
+    <h3>市町村</h3><select name="city" id="city" ${on}><option value="">すべて</option>${citiesOf(q.region).map(c => `<option ${c === q.city ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+    <h3>宿の種類</h3><div class="checks">${Object.entries(KINDS).map(([k, [t, e]]) => `<label><input type="checkbox" name="kind" value="${k}" ${kinds.includes(k) ? 'checked' : ''} ${on}><span>${e} ${t}</span><small>${count(q, { kind: k })}</small></label>`).join('')}</div>
+    <h3>こだわり</h3><div class="checks"><label><input type="checkbox" name="onsen" value="1" ${q.onsen ? 'checked' : ''} ${on}><span>♨️ 温泉地の宿</span><small>${count(q, { onsen: '1' })}</small></label>
+      <label><input type="checkbox" name="web" value="1" ${q.web ? 'checked' : ''} ${on}><span>公式サイトあり</span><small>${count(q, { web: '1' })}</small></label></div>
+    <input type="hidden" name="sort" value="${esc(q.sort)}">
+    ${live ? `<a class="clear" href="#/list">条件をすべてクリア</a>` : `<div class="sticky-bottom"><a class="btn sub" href="#/filter">クリア</a><button class="btn">${I('search', 18)}この条件で表示</button></div>`}</form>`;
+};
+
+let MAP, MARKERS = {};
+function mkMap(list, focus) {
+  MARKERS = {};
   if (!window.L) { $('#map').innerHTML = '<p class="muted" style="padding:40px;text-align:center">地図を読み込めませんでした。再読み込みしてください。</p>'; return; }
-  const m = L.map('map', { zoomControl: false, preferCanvas: true }).setView([43.2, 142.8], 7);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(m);
-  list.forEach(h => L.circleMarker([h.lat, h.lng], { radius: 7, color: '#fff', weight: 2, fillColor: KINDS[h.kind][2], fillOpacity: 1 }).addTo(m)
-    .bindPopup(`<div class="pop"><b>${esc(h.name)}</b><small>${KINDS[h.kind][0]}・${esc(h.city)}${h.onsen ? '・♨️温泉' : ''}</small><a href="#/hotel/${h.id}">詳細を見る</a></div>`));
-  if (list.length > 1) m.fitBounds(list.map(h => [h.lat, h.lng]), { padding: [30, 30], maxZoom: 15 }); else if (list.length) m.setView([list[0].lat, list[0].lng], 15);
+  MAP = L.map('map', { zoomControl: true, preferCanvas: true }).setView([43.2, 142.8], 7);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(MAP);
+  list.forEach(h => {
+    MARKERS[h.id] = L.circleMarker([h.lat, h.lng], { radius: 7, color: '#fff', weight: 2, fillColor: KINDS[h.kind][2], fillOpacity: 1 }).addTo(MAP)
+      .bindPopup(`<div class="pop"><b>${esc(h.name)}</b><small>${KINDS[h.kind][0]}・${esc(h.city)}${h.onsen ? '・♨️温泉' : ''}</small><a href="#/hotel/${h.id}">詳細を見る</a></div>`);
+  });
+  if (focus) MAP.setView([focus.lat, focus.lng], 15);
+  else if (list.length > 1) MAP.fitBounds(list.map(h => [h.lat, h.lng]), { padding: [30, 30], maxZoom: 15 });
+  else if (list.length) MAP.setView([list[0].lat, list[0].lng], 15);
 }
+// 一覧のカードにマウスを乗せると地図のピンを強調
+window.hl = (id, on) => { const m = MARKERS[id]; if (!m) return; m.setStyle({ radius: on ? 12 : 7, weight: on ? 3 : 2 }); if (on) m.bringToFront(); };
 
 // ===== 操作 =====
-window.doSearch = f => { const fd = new FormData(f); go('list?' + qstr({ kw: fd.get('kw'), region: fd.get('region') })); };
-window.doFilter = f => { const fd = new FormData(f); go('list?' + qstr({ region: fd.get('region'), city: fd.get('city'), kind: fd.getAll('kind').join(','), onsen: fd.get('onsen'), web: fd.get('web'), kw: fd.get('kw') })); };
-window.onRegion = sel => {
-  const cities = [...new Set(DB.hotels.filter(h => !sel.value || h.region === sel.value).map(h => h.city))].sort((a, b) => a.localeCompare(b, 'ja'));
-  $('#city').innerHTML = `<option value="">市町村：すべて</option>${cities.map(c => `<option>${esc(c)}</option>`).join('')}`;
-};
+window.doSearch = f => { const fd = new FormData(f); go('list?' + qstr({ kw: fd.get('kw'), region: fd.get('region'), kind: fd.get('kind') })); };
+window.doFilter = f => { const fd = new FormData(f); go('list?' + qstr({ region: fd.get('region'), city: fd.get('city'), kind: fd.getAll('kind').join(','), onsen: fd.get('onsen'), web: fd.get('web'), kw: fd.get('kw'), sort: fd.get('sort') })); };
+window.onRegion = sel => { $('#city').innerHTML = `<option value="">すべて</option>${citiesOf(sel.value).map(c => `<option>${esc(c)}</option>`).join('')}`; };
+window.setSort = v => { const q = Object.fromEntries(new URLSearchParams(location.hash.split('?')[1] || '')); go('list?' + qstr({ ...q, sort: v, lim: '' })); };
 
 // ===== 画面 =====
 const V = {
   async ''() {
     const db = await load(), n = r => db.hotels.filter(h => h.region === r).length;
-    return { h: `<div class="hero"><p class="brand">北海道やどさがし</p><h1>北海道の宿を、<br>エリアと種類で探す。</h1>
+    return { cls: 'home', h: `<div class="hero"><div class="hero-in"><p class="brand">北海道やどさがし</p><h1>北海道の宿を、エリアと種類で探す。</h1>
       <form class="sform" onsubmit="doSearch(this);return false">
-        <label>キーワード<input name="kw" placeholder="宿名・市町村（例：洞爺湖、すすきの）"></label>
+        <label class="kw">キーワード<input name="kw" placeholder="宿名・市町村（例：洞爺湖、すすきの）"></label>
         <label>地域<select name="region"><option value="">北海道全域</option>${db.regions.map(r => `<option>${r}</option>`).join('')}</select></label>
-        <button class="btn">${I('search', 18)}${db.hotels.length.toLocaleString()}軒から探す</button></form></div>
-      <section><h2>地域から探す</h2><div class="rgrid">${db.regions.map(r => `<a class="rtile" href="#/list?${qstr({ region: r })}"><span>${REGION_EMOJI[r] || '📍'}</span><b>${r}</b><small>${n(r)}軒</small></a>`).join('')}</div></section>
-      <section><h2>種類から探す</h2><div class="chips">${Object.entries(KINDS).map(([k, [t, e]]) => `<a class="chip" href="#/list?kind=${k}">${e} ${t}</a>`).join('')}<a class="chip" href="#/list?onsen=1">♨️ 温泉地の宿</a></div></section>
-      ${CREDIT()}` };
+        <label>種類<select name="kind"><option value="">すべて</option>${Object.entries(KINDS).map(([k, [t]]) => `<option value="${k}">${t}</option>`).join('')}</select></label>
+        <button class="btn">${I('search', 18)}${db.hotels.length.toLocaleString()}軒から探す</button></form></div></div>
+      <div class="wrap"><section><h2>地域から探す</h2><div class="rgrid">${db.regions.map(r => `<a class="rtile" href="#/list?${qstr({ region: r })}"><span>${REGION_EMOJI[r] || '📍'}</span><b>${r}</b><small>${n(r)}軒</small></a>`).join('')}</div></section>
+      <section><h2>種類・こだわりから探す</h2><div class="chips">${Object.entries(KINDS).map(([k, [t, e]]) => `<a class="chip" href="#/list?kind=${k}">${e} ${t}</a>`).join('')}<a class="chip" href="#/list?onsen=1">♨️ 温泉地の宿</a><a class="chip" href="#/map">🗺️ 地図で全体を見る</a></div></section>
+      ${CREDIT()}</div>` };
   },
   async list({ q }) {
     const db = await load(), list = filt(db.hotels, q), lim = +q.lim || PAGE, act = activeChips(q);
-    return { t: q.region || q.city || '検索結果', h: `<div class="toolbar"><span class="count"><b>${list.length.toLocaleString()}</b>軒</span>
-      <a class="tbtn" href="#/filter?${qstr(q)}">${I('filter', 16)}絞り込み</a><a class="tbtn" href="#/map?${qstr({ ...q, lim: '' })}">${I('map', 16)}地図</a></div>
+    return { t: q.city || q.region || '検索結果', cls: 'wide', keepScroll: !!q.lim, h: `${crumb(q)}
+      <div class="listwrap"><aside class="side">${filterForm(q, true)}</aside>
+      <div class="results"><div class="toolbar"><span class="count"><b>${list.length.toLocaleString()}</b>軒</span>
+        <select class="sort" onchange="setSort(this.value)" aria-label="並び順">${SORTS.map(([v, t]) => `<option value="${v}" ${v === (q.sort || '') ? 'selected' : ''}>${t}</option>`).join('')}</select>
+        <a class="tbtn sp" href="#/filter?${qstr(q)}">${I('filter', 16)}絞り込み</a><a class="tbtn sp" href="#/map?${qstr({ ...q, lim: '' })}">${I('map', 16)}地図</a></div>
       ${act.length ? `<div class="chips small">${act.map(a => `<span class="chip on">${esc(a)}</span>`).join('')}<a class="chip" href="#/list">クリア</a></div>` : ''}
       ${list.slice(0, lim).map(card).join('') || empty('条件に合う宿がありません', '条件を減らして探してみてください')}
-      ${list.length > lim ? `<a class="btn sub" href="#/list?${qstr({ ...q, lim: lim + PAGE })}">もっと見る（残り${(list.length - lim).toLocaleString()}軒）</a>` : ''}${CREDIT()}`, keepScroll: !!q.lim };
+      ${list.length > lim ? `<a class="btn sub" href="#/list?${qstr({ ...q, lim: lim + PAGE })}">もっと見る（残り${(list.length - lim).toLocaleString()}軒）</a>` : ''}${CREDIT()}</div>
+      <div class="mapcol"><div id="map"></div></div></div>`, a: () => isPC() && mkMap(list) };
   },
-  async filter({ q }) {
-    const db = await load(), cities = [...new Set(db.hotels.filter(h => !q.region || h.region === q.region).map(h => h.city))].sort((a, b) => a.localeCompare(b, 'ja'));
-    const kinds = (q.kind || '').split(',');
-    return { t: '絞り込み', h: `<form class="fform" onsubmit="doFilter(this);return false">
-      <h3>キーワード</h3><input name="kw" value="${esc(q.kw)}" placeholder="宿名・住所など">
-      <h3>地域・市町村</h3><div class="row2"><select name="region" onchange="onRegion(this)"><option value="">地域：すべて</option>${db.regions.map(r => `<option ${r === q.region ? 'selected' : ''}>${r}</option>`).join('')}</select>
-        <select name="city" id="city"><option value="">市町村：すべて</option>${cities.map(c => `<option ${c === q.city ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>
-      <h3>宿の種類（複数選択可）</h3><div class="chips">${Object.entries(KINDS).map(([k, [t, e]]) => `<label class="chip"><input type="checkbox" name="kind" value="${k}" ${kinds.includes(k) ? 'checked' : ''}>${e} ${t}</label>`).join('')}</div>
-      <h3>こだわり</h3><div class="chips"><label class="chip"><input type="checkbox" name="onsen" value="1" ${q.onsen ? 'checked' : ''}>♨️ 温泉地の宿</label><label class="chip"><input type="checkbox" name="web" value="1" ${q.web ? 'checked' : ''}>公式サイトあり</label></div>
-      <div class="sticky-bottom"><a class="btn sub" href="#/filter">クリア</a><button class="btn">${I('search', 18)}この条件で表示</button></div></form>` };
-  },
+  async filter({ q }) { await load(); return { t: '絞り込み', h: filterForm(q, false) }; },
   async map({ q }) {
-    const db = await load(), list = filt(db.hotels, q);
-    return { t: '地図', cls: 'p0', h: `<div class="mapsum">${activeChips(q).map(esc).join('・') || '北海道全域'}｜${list.length.toLocaleString()}軒（ピンの色＝宿の種類）</div><div id="map" class="full"></div>
-      <a class="fab" href="#/list?${qstr(q)}">${I('list', 18)}一覧で見る</a>`, a: () => mkMap(list) };
+    const db = await load(), list = q.fav ? db.hotels.filter(h => favs().includes(h.id)) : filt(db.hotels, q);
+    return { t: q.fav ? 'お気に入りの地図' : '地図', cls: 'p0', h: `<div class="mapsum">${q.fav ? 'お気に入り' : activeChips(q).map(esc).join('・') || '北海道全域'}｜${list.length.toLocaleString()}軒（ピンの色＝宿の種類）</div><div id="map" class="full"></div>
+      ${q.fav ? '' : `<a class="fab" href="#/list?${qstr(q)}">${I('list', 18)}一覧で見る</a>`}`, a: () => mkMap(list) };
   },
   async hotel({ id }) {
     const db = await load(), h = db.hotels.find(x => x.id === id);
     if (!h) return { t: '宿の詳細', h: empty('宿が見つかりません', 'データ更新で掲載が終了した可能性があります') };
-    const near = db.hotels.filter(x => x.id !== h.id && x.city === h.city).slice(0, 5);
-    return { t: '宿の詳細', h: `<div class="dhero emo" style="--c:${KINDS[h.kind][2]}">${KINDS[h.kind][1]}</div><div class="sheet">
-      <div class="tags">${kindTag(h)}${h.onsen ? '<span class="tag m-bd">♨️ 温泉</span>' : ''}</div>
+    const near = db.hotels.filter(x => x.id !== h.id && x.city === h.city).slice(0, 6);
+    return { t: '宿の詳細', cls: 'wide', h: `${crumb(h, h.name)}<div class="dgrid"><div class="dmain">
+      <div class="dhero emo" style="--c:${KINDS[h.kind][2]}">${KINDS[h.kind][1]}</div>
+      <div class="sheet"><div class="tags">${tags(h)}</div>
       <div class="drate"><h1 class="dname">${esc(h.name)}</h1>${heart(h.id)}</div>
-      <ul class="info"><li><small>所在地</small>${esc(h.addr || h.city)}（${esc(h.region)}）</li>${h.phone ? `<li><small>電話</small><a href="tel:${esc(h.phone)}">${esc(h.phone)}</a></li>` : ''}</ul>
-      <div id="map" class="mini"></div>
-      <h2 class="sec-head">空室・料金を確認する</h2>
-      ${h.website ? `<a class="btn" target="_blank" rel="noopener" href="${esc(h.website)}">${I('ext', 18)}公式サイト</a>` : ''}${linksFor(h)}
-      <a class="btn sub" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${h.lat},${h.lng}">${I('map', 18)}Googleマップで場所を見る</a>
-      ${near.length ? `<h2 class="sec-head">${esc(h.city)}のほかの宿</h2>${near.map(card).join('')}` : ''}${CREDIT()}</div>`, a: () => mkMap([h]) };
+      <ul class="info"><li><small>所在地</small>${esc(h.addr || h.city)}（${esc(h.region)}）</li>${h.phone ? `<li><small>電話</small><a href="tel:${esc(h.phone)}">${esc(h.phone)}</a></li>` : ''}<li><small>種類</small>${KINDS[h.kind][0]}</li></ul>
+      <div id="map" class="mini"></div></div></div>
+      <aside class="cta"><h2>空室・料金を確認する</h2><p class="muted">料金・空室は予約サイトや公式サイトでご確認ください。</p>
+        ${h.website ? `<a class="btn" target="_blank" rel="noopener" href="${esc(h.website)}">${I('ext', 18)}公式サイト</a>` : ''}${linksFor(h)}
+        <a class="btn sub" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${h.lat},${h.lng}">${I('map', 18)}Googleマップで場所を見る</a></aside></div>
+      ${near.length ? `<section><h2>${esc(h.city)}のほかの宿</h2><div class="cgrid">${near.map(card).join('')}</div></section>` : ''}${CREDIT()}`, a: () => mkMap([h, ...near], h) };
   },
   async fav() {
     const db = await load(), list = favs().map(id => db.hotels.find(h => h.id === id)).filter(Boolean);
-    return { t: 'お気に入り', h: list.length ? `${list.map(card).join('')}<a class="btn sub" href="#/map?fav=1">${I('map', 18)}地図で見る</a>` : empty('お気に入りはまだありません', '宿の ♡ をタップすると保存できます') };
+    return { t: 'お気に入り', cls: 'wide', h: `<h1 class="pc">お気に入り（${list.length}軒）</h1>${list.length ? `<div class="cgrid">${list.map(card).join('')}</div><a class="btn sub narrow" href="#/map?fav=1">${I('map', 18)}地図で見る</a>` : empty('お気に入りはまだありません', '宿の ♡ をタップすると保存できます')}` };
   },
 };
 
 const TABS = [['', 'search', 'さがす'], ['map', 'map', '地図'], ['fav', 'heart', 'お気に入り']];
-const nav = cur => `<nav>${TABS.map(([k, ic, t]) => `<a class="${k === cur ? 'on' : ''}" href="#/${k}">${I(ic, 22)}${t}</a>`).join('')}</nav>`;
+const nav = cur => `<nav class="bottom">${TABS.map(([k, ic, t]) => `<a class="${k === cur ? 'on' : ''}" href="#/${k}">${I(ic, 22)}${t}</a>`).join('')}</nav>`;
+const topbar = cur => `<div class="topbar"><a class="logo" href="#/">🏨 北海道やどさがし</a>
+  <form class="tsearch" onsubmit="doSearch(this);return false">${I('search', 16)}<input name="kw" placeholder="宿名・市町村で検索"></form>
+  <div class="tlinks">${TABS.map(([k, ic, t]) => `<a class="${k === cur ? 'on' : ''}" href="#/${k}">${I(ic, 18)}${t}${k === 'fav' && favs().length ? `<b>${favs().length}</b>` : ''}</a>`).join('')}</div></div>`;
 const PARENT = { list: '', filter: '', hotel: '' };
 
 async function render() {
@@ -141,17 +175,14 @@ async function render() {
   const [name = '', arg] = path.split('/');
   const q = Object.fromEntries(new URLSearchParams(qs));
   try {
-    if (name === 'map' && q.fav) { await load(); const f = favs(); return showMap(DB.hotels.filter(h => f.includes(h.id))); }
     const v = await (V[name] || V[''])({ id: arg, q });
-    const root = TABS.some(([k]) => k === name), y = scrollY;
-    $('#app').innerHTML = (v.t ? `<header>${root ? '<span class="hsp"></span>' : `<button class="back" onclick="history.length>1?history.back():go('')" aria-label="戻る">${I('back')}</button>`}<h2>${esc(v.t)}</h2><span class="hsp"></span></header>` : '')
-      + `<main class="${v.cls || ''}">${v.h}</main>${nav(PARENT[name] ?? name)}`;
+    const root = TABS.some(([k]) => k === name), y = scrollY, cur = PARENT[name] ?? name;
+    $('#app').innerHTML = topbar(cur) + (v.t ? `<header>${root ? '<span class="hsp"></span>' : `<button class="back" onclick="history.length>1?history.back():go('')" aria-label="戻る">${I('back')}</button>`}<h2>${esc(v.t)}</h2><span class="hsp"></span></header>` : '')
+      + `<main class="${v.cls || ''}">${v.h}</main>${nav(cur)}`;
     v.a?.(); scrollTo(0, v.keepScroll ? y : 0);
-  } catch (e) { $('#app').innerHTML = `<main>${empty('読み込みに失敗しました', esc(e.message))}<a class="btn" href="#/">トップへ</a></main>${nav('')}`; }
-}
-function showMap(list) {
-  $('#app').innerHTML = `<header><button class="back" onclick="history.back()">${I('back')}</button><h2>お気に入りの地図</h2><span class="hsp"></span></header><main class="p0"><div class="mapsum">${list.length}軒</div><div id="map" class="full"></div></main>${nav('fav')}`;
-  mkMap(list);
+  } catch (e) { $('#app').innerHTML = `${topbar('')}<main>${empty('読み込みに失敗しました', esc(e.message))}<a class="btn" href="#/">トップへ</a></main>${nav('')}`; }
 }
 addEventListener('hashchange', render);
+// 画面幅をまたいだら描き直す（一覧の地図の出し分け）
+let wasPC = isPC(); addEventListener('resize', () => { if (isPC() !== wasPC) { wasPC = isPC(); render(); } });
 render();

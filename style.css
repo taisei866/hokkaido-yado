@@ -12,8 +12,8 @@ header{position:sticky;top:0;z-index:1100;display:flex;align-items:center;height
 header h2{flex:1;text-align:center;font-size:16px;margin:0}
 .back,.hsp{width:40px;height:40px;flex:none}.back{border:0;background:none;display:grid;place-items:center;cursor:pointer;color:var(--ink)}
 main{padding:16px}main.p0{padding:0}
-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;display:flex;background:rgba(255,255,255,.97);backdrop-filter:blur(8px);border-top:1px solid var(--line);z-index:1100;padding-bottom:env(safe-area-inset-bottom)}
-nav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 0 8px;font-size:10px;color:#adb5bd;font-weight:700}nav a.on{color:var(--p)}
+nav.bottom{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;display:flex;background:rgba(255,255,255,.97);backdrop-filter:blur(8px);border-top:1px solid var(--line);z-index:1100;padding-bottom:env(safe-area-inset-bottom)}
+nav.bottom a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 0 8px;font-size:10px;color:#adb5bd;font-weight:700}nav.bottom a.on{color:var(--p)}
 
 .btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin:10px 0;padding:14px;border:0;border-radius:12px;background:var(--acc);color:#fff;font:inherit;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(232,89,12,.25)}
 .btn:active{transform:scale(.98)}
@@ -103,3 +103,74 @@ input:focus,select:focus{outline:none;border-color:var(--p)}
 #map.mini{height:200px;border-radius:var(--r);margin:12px 0;z-index:0}
 .sec-head{margin-top:24px}
 .drate .dname{margin:6px 0}
+
+/* ===== UI改善（共通） ===== */
+.topbar{display:none}
+.crumb{font-size:12px;color:var(--sub);margin:-4px 0 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.crumb a{color:var(--sub)}.crumb span{color:var(--ink)}
+.side,.mapcol,.pc{display:none}
+.sort{width:auto;margin:0;padding:7px 10px;font-size:13px;border-radius:999px}
+.addr{font-size:11px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.checks{display:flex;flex-direction:column;gap:2px}
+.checks label{display:flex;align-items:center;gap:8px;padding:8px 4px;font-size:14px;cursor:pointer;border-radius:8px}
+.checks label:hover{background:#f1f3f5}.checks input{width:18px;height:18px;margin:0;accent-color:var(--p)}
+.checks span{flex:1}.checks small{color:var(--sub);font-size:12px}
+.clear{display:block;margin:16px 0 4px;font-size:13px}
+.cta{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-top:12px}
+.cta h2{margin-bottom:4px}.cta .muted{margin:0 0 6px}
+.cgrid .card{margin-bottom:10px}
+.wrap{display:block}
+.home .hero{border-radius:0 0 24px 24px}
+.card:hover{border-color:#a5d8ff}
+#map.mini{height:220px}
+
+/* ===== PC（960px以上） ===== */
+@media (min-width:960px){
+  body{background:var(--bg)}
+  #app{max-width:none;padding-bottom:0}
+  nav.bottom,header{display:none}
+  .topbar{display:flex;align-items:center;gap:24px;position:sticky;top:0;z-index:1200;height:64px;padding:0 32px;background:#fff;border-bottom:1px solid var(--line)}
+  .logo{font-family:"M PLUS Rounded 1c",sans-serif;font-size:18px;color:var(--p);white-space:nowrap}
+  .tsearch{flex:1;max-width:420px;display:flex;align-items:center;gap:8px;padding:0 14px;border:1.5px solid var(--line);border-radius:999px;color:var(--sub)}
+  .tsearch input{border:0;margin:0;padding:10px 0;font-size:14px}.tsearch input:focus{outline:none}
+  .tlinks{margin-left:auto;display:flex;gap:4px}
+  .tlinks a{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;color:var(--ink);font-size:14px;font-weight:700}
+  .tlinks a:hover{background:#f1f3f5}.tlinks a.on{background:#e7f5ff;color:var(--p)}
+  .tlinks b{background:#fa5252;color:#fff;border-radius:999px;font-size:11px;padding:1px 7px}
+  main{max-width:1200px;margin:0 auto;padding:24px 32px}
+  main.home{max-width:none;padding:0}
+  main.wide{max-width:1440px}
+  main.p0{max-width:none;padding:0}
+  .pc{display:block}.sp{display:none}
+
+  /* トップ：横長の検索バー（Booking.com型） */
+  .home .hero{margin:0;padding:56px 32px 72px;border-radius:0}
+  .hero-in{max-width:1080px;margin:0 auto}
+  .hero h1{font-size:34px;margin:8px 0 24px}
+  .sform{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:12px;align-items:end;padding:16px}
+  .sform label{margin:0}.sform .btn{margin:0;height:48px;padding:0 28px;white-space:nowrap}
+  .wrap{max-width:1080px;margin:0 auto;padding:8px 32px 32px}
+  .rgrid{grid-template-columns:repeat(4,1fr);gap:14px}
+  .rtile{padding:18px;transition:box-shadow .15s}.rtile:hover{box-shadow:0 6px 18px rgba(0,0,0,.08);border-color:#a5d8ff}
+
+  /* 一覧：絞り込み｜結果｜地図 の3列（じゃらん・Booking・Googleホテル型） */
+  .listwrap{display:grid;grid-template-columns:260px minmax(0,1fr) minmax(360px,40%);gap:24px;align-items:start}
+  .side{display:block;position:sticky;top:88px;max-height:calc(100vh - 110px);overflow:auto;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:4px 16px 16px}
+  .side h3{font-size:13px;margin:16px 0 6px}.side select,.side input[name=kw]{font-size:14px;padding:9px}
+  .mapcol{display:block;position:sticky;top:88px;height:calc(100vh - 110px);border-radius:var(--r);overflow:hidden;border:1px solid var(--line)}
+  .mapcol #map{height:100%}
+  .results .card{padding:12px}.results .ph{width:140px;height:110px}
+  .results .nm{font-size:16px}
+
+  /* 詳細：本文＋右に固定の予約ボックス */
+  .dgrid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:28px;align-items:start}
+  .dhero{margin:0;border-radius:var(--r);height:300px}
+  .sheet{margin:0;padding:20px 0 0;background:none}
+  .cta{position:sticky;top:88px;margin:0;box-shadow:0 8px 24px rgba(0,0,0,.06)}
+  #map.mini{height:320px}
+  .cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px}
+  .cgrid .card{margin:0}
+  .narrow{max-width:320px}
+  #map.full{height:calc(100vh - 64px - 40px)}
+  .fab{bottom:28px}
+}
+@media (max-width:959px){.toolbar{gap:6px}.count{white-space:nowrap}.sort{max-width:118px;padding:7px 6px;font-size:12px}.toolbar .tbtn{padding:7px 10px;font-size:12px}}
